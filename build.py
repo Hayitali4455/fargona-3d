@@ -42,6 +42,7 @@ def main():
     ap.add_argument("--out", default=os.path.join(HERE, "index.html"))
     ap.add_argument("--og-image", default="", help="ulashish rasmi uchun to'liq URL")
     ap.add_argument("--no-tiles", action="store_true", help="4 m bo'laklarsiz (bosilgan nuqta 50 m to'rdan)")
+    ap.add_argument("--no-streams", action="store_true", help="suv oqimi qatlamisiz")
     a = ap.parse_args()
     res = a.res
 
@@ -81,6 +82,25 @@ def main():
 
     nan = np.isnan(dem)
     print(f"setka {W}x{H}, {res} m; niqob ichida bo'sh DEM: {(nan & mask).sum()} tugun")
+    # Katta DEM bo'shliqlari (Shohimardonning ~38 km2 qismi) chizilmaydi: to'ldirilgan sirt soxta tekislik bo'lardi
+    lab, _ = ndimage.label(nan & mask)
+    sizes = np.bincount(lab.ravel())
+    big = np.isin(lab, np.nonzero(sizes * res * res > 0.5e6)[0]) & (lab > 0)
+    mask &= ~big
+    ids[big] = 0
+    print(f"DEM'siz qoldirilgan joy: {big.sum() * res * res / 1e6:.1f} km2")
+    # portalda "DEM yo'q" yozuvi: viloyat ichidagi (chekka halqasiz) 5 km2 dan katta bo'shliqlar
+    strict = rasterize(((gm, 1) for gm in gt.geometry), out_shape=(H, W), transform=dst_tr, fill=0, dtype="uint8") > 0
+    vl, nv = ndimage.label(strict & nan)
+    voids = []
+    for k in range(1, nv + 1):
+        comp = vl == k
+        km2 = comp.sum() * res * res / 1e6
+        if km2 < 5:
+            continue
+        i, j = np.unravel_index(np.argmax(ndimage.distance_transform_edt(comp)), comp.shape)
+        voids.append({"x": round(x0 + j * res), "y": round(y0 - i * res), "km2": round(km2, 1)})
+    print("DEM yo'q yozuvlari:", voids)
     idx = ndimage.distance_transform_edt(nan, return_distances=False, return_indices=True)
     dem = dem[idx[0], idx[1]]
 
@@ -141,6 +161,26 @@ def main():
         t4["has"] = "".join("1" if f"{r}_{c}.bin" in have else "0" for r in range(t4["ny"]) for c in range(t4["nx"]))
         print(f"4 m bo'laklar: {t4['has'].count('1')} ta")
 
+    # suv oqimi yo'llari (hydro_*.py natijasi): chiziqlar 50 m dan qisqa bo'laklarga bo'linadi (relyefga yotishi uchun),
+    # koordinatalar butun metr, int32 delta + gzip; har chiziq uchun nuqtalar soni, Strahler tartibi, havza km2
+    oqim = None
+    gp = os.path.join(HERE, "hydro", "suv_oqimi.gpkg")
+    if os.path.exists(gp) and not a.no_streams:
+        so = gpd.read_file(gp).to_crs(tm)
+        if "manba" in so:  # portalda DEM yo'q joy (Shohimardon) teshik, u yerdagi GLO-30 chiziqlari chizilmaydi
+            so = so[so["manba"] != "GLO-30"]
+        cnt, xy = [], []
+        for ln in so.geometry:
+            c = np.round(np.asarray(shapely.segmentize(ln, 50).coords)[:, :2]).astype(np.int64)
+            cnt.append(len(c))
+            xy.append(c)
+        xy = np.concatenate(xy)
+        d32 = np.diff(xy, axis=0, prepend=np.zeros((1, 2), np.int64)).ravel()  # x va y alohida delta
+        assert np.abs(d32).max() < 2**31
+        oqim = {"n": cnt, "o": so["tartib"].astype(int).tolist(), "a": np.round(so["maydon_km2"], 2).tolist(),
+                "xy": b64gz(d32.astype("<i4"))}
+        print(f"suv oqimi: {len(so)} chiziq, {len(xy)} nuqta")
+
     data = {
         "region": g["region_nam"].iloc[0],
         "lon0": lon0, "lat0": lat0,
@@ -152,6 +192,8 @@ def main():
                "lat": np.round(lat, 7).ravel().tolist(), "lon": np.round(lon, 7).ravel().tolist(),
                "mx": np.round(mx, 2).ravel().tolist(), "my": np.round(my, 2).ravel().tolist()},
         "t4": t4,
+        "oqim": oqim,
+        "voids": voids,
         "tum": tum, "outer": L_outer, "inner": L_inner,
     }
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":"))

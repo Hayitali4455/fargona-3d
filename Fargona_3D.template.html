@@ -35,6 +35,8 @@
     border-radius: 6px; background: rgba(10, 15, 24, .80); border: 1px solid rgba(255, 255, 255, .22); color: #fff;
     font-weight: 600; font-size: 12.5px; pointer-events: auto; cursor: pointer; transition: background .15s, color .15s; }
   .lbl.city .pill { background: rgba(70, 22, 22, .82); }
+  .lbl.void .pill { background: rgba(40, 46, 56, .85); color: #c3ccd8; font-weight: 500; font-style: italic; pointer-events: none; }
+  .lbl.void .stem, .lbl.void .dot { background: #8a96a6; }
   .lbl.hov .pill { border-color: #fff; }
   .lbl.sel .pill { background: #fff; color: #0b111a; border-color: #fff; }
   .lbl.sel .stem, .lbl.sel .dot { background: #ffd84a; }
@@ -79,6 +81,12 @@
   .btns button:hover, .seg button:hover { color: #fff; }
 
   #legend { left: 16px; bottom: 44px; width: 280px; padding: 10px 14px 8px; }
+  #legend .oq { display: none; align-items: center; gap: 8px; margin-top: 6px; padding-top: 7px;
+    border-top: 1px solid var(--panel-line); font-size: 11.5px; color: var(--muted); }
+  #legend .oq i { flex: none; width: 26px; height: 4px; border-radius: 2px; background: #48c0ff; box-shadow: 0 0 0 1px #04182e; }
+  .row > label.t span { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
+  .row > label.t span input { accent-color: var(--accent); margin: 0; }
+  #oqRow { display: none; }
   #legend .t { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
   #ramp { height: 12px; border-radius: 3px; margin: 6px 0 2px; }
   #ticks { position: relative; height: 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -128,7 +136,7 @@
   <canvas id="cv"></canvas>
   <div id="labels"></div>
   <div id="pinBox"><div id="pin"><div class="stem"></div><div class="dot"></div>
-    <div class="pop"><button class="x" id="pinX" title="Yopish">×</button><b id="pZ">—</b><span id="pSrc"></span><span id="pT"></span><span id="pLL"></span></div>
+    <div class="pop"><button class="x" id="pinX" title="Yopish">×</button><b id="pZ">—</b><span id="pSrc"></span><span id="pT"></span><span id="pQ"></span><span id="pLL"></span></div>
   </div></div>
   <div id="msg">Yuklanmoqda…</div>
 
@@ -151,6 +159,10 @@
         <button data-m="lin">Chiziqli</button>
         <button data-m="eq">Kvantil</button>
       </div>
+    </div>
+    <div class="row" id="oqRow">
+      <label class="t" for="oqMin"><span><input type="checkbox" id="showOq" checked> Suv oqimi yo‘llari</span><b id="oqv">havza ≥ 25 km²</b></label>
+      <input id="oqMin" type="range" min="0" max="8" step="1" value="4" aria-label="Ko‘rsatiladigan eng kichik havza maydoni">
     </div>
     <div class="row chk">
       <label><input type="checkbox" id="showLbl" checked> Tuman nomlari</label>
@@ -181,6 +193,7 @@
     <div class="t"><span>Balandlik, m</span><span id="lgMode">muvozanatli</span></div>
     <div id="ramp"></div>
     <div id="ticks"></div>
+    <div class="oq" id="lgOq"><i></i><span>Suv oqimi yo‘li (DEM bo‘yicha), qalinligi — Strahler tartibi. Viloyat tashqarisidagi havza: Copernicus GLO-30 © DLR e.V., © Airbus DS, ESA</span></div>
   </div>
 
   <button id="compass" class="card" title="Shimolga burish">
@@ -444,6 +457,90 @@ const D = /*__DATA__*/null;
   bnd.add(fatLines(D.inner, 0.85, 0xffffff, 0.95, 4, 2));
   bnd.add(fatLines(D.outer, 1.5, 0xffffff, 1.0, 4, 2));
 
+  /* ---------- Suv oqimi yo'llari (ArcGIS Derive Continuous Flow, D8; hydro_*.py) ---------- */
+  // Har chiziq: nuqtalar soni n, Strahler tartibi o, yuqoridagi havza a (km2, faqat viloyat ichidan)
+  const OQ_STEPS = [1, 2, 5, 10, 25, 50, 100, 250, 500], uMinA = { value: 25 };
+  const OQ = D.oqim ? await (async () => {
+    const raw = await unpack(D.oqim.xy), d = new Int32Array(raw.buffer, 0, raw.length / 4), xy = new Float64Array(d.length);
+    for (let i = 0, ax = 0, ay = 0; i < d.length; i += 2) { ax += d[i]; ay += d[i + 1]; xy[i] = ax; xy[i + 1] = ay; }
+    return { n: D.oqim.n, o: D.oqim.o, a: D.oqim.a, xy };
+  })() : null;
+  const oqG = new THREE.Group(); world.add(oqG);
+  if (OQ) {
+    let nseg = 0; OQ.n.forEach(c => { nseg += c - 1; });
+    const p = new Float32Array(nseg * 12), o = new Float32Array(nseg * 12), s = new Float32Array(nseg * 4),
+      aa = new Float32Array(nseg * 4), ao = new Float32Array(nseg * 4), ix = new Uint32Array(nseg * 6);
+    for (let li = 0, k = 0, q = 0; li < OQ.n.length; li++) {
+      let px = 0, py = 0, pz = 0;
+      for (let m = 0; m < OQ.n[li]; m++, k += 2) {
+        const x = toX(OQ.xy[k]), z = toZ(OQ.xy[k + 1]), y = heightAt(x, z) - ZB + 3;
+        if (m) {
+          p.set([px, py, pz, px, py, pz, x, y, z, x, y, z], q * 12); o.set([x, y, z, x, y, z, px, py, pz, px, py, pz], q * 12);
+          s.set([1, -1, -1, 1], q * 4); aa.fill(OQ.a[li], q * 4, q * 4 + 4); ao.fill(OQ.o[li], q * 4, q * 4 + 4);
+          const b = q * 4; ix.set([b, b + 1, b + 3, b, b + 3, b + 2], q * 6); q++;
+        }
+        px = x; py = y; pz = z;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    g.setAttribute('other', new THREE.BufferAttribute(o, 3));
+    g.setAttribute('side', new THREE.BufferAttribute(s, 1));
+    g.setAttribute('aA', new THREE.BufferAttribute(aa, 1));
+    g.setAttribute('aO', new THREE.BufferAttribute(ao, 1));
+    g.setIndex(new THREE.BufferAttribute(ix, 1));
+    // Qalinlik (yarim kenglik, px) = w0 + w1 * tartib; havzasi uMinA dan kichik chiziqlar ekrandan tashqariga chiqariladi
+    const oqMat = (w0, w1, color, alpha, ord) => {
+      const m = new THREE.ShaderMaterial({
+        uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: 1 }, uW0: { value: w0 }, uW1: { value: w1 }, uMin: uMinA,
+          uC: { value: new THREE.Color(color) }, uA: { value: alpha } },
+        vertexShader: `attribute vec3 other; attribute float side; attribute float aA; attribute float aO;
+          uniform vec2 uRes; uniform float uW; uniform float uW0; uniform float uW1; uniform float uMin;
+          void main() {
+            if (aA < uMin) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+            mat4 m = projectionMatrix * modelViewMatrix;
+            vec4 a = m * vec4(position, 1.0), b = m * vec4(other, 1.0);
+            vec2 sa = a.xy / a.w * uRes, sb = b.xy / b.w * uRes, d = sb - sa;
+            vec2 n = length(d) > 1e-6 ? normalize(vec2(-d.y, d.x)) : vec2(0.0);
+            a.xy += n * side * (uW0 + uW1 * aO) * uW / uRes * a.w;
+            a.z -= 0.0005 * a.w;
+            gl_Position = a;
+          }`,
+        fragmentShader: `uniform vec3 uC; uniform float uA; void main() { gl_FragColor = vec4(uC, uA); }`,
+        transparent: alpha < 1, depthWrite: false, side: THREE.DoubleSide
+      });
+      lineMats.push(m);
+      const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = ord; return mesh;
+    };
+    oqG.add(oqMat(1.15, 0.32, 0x0a2440, 1.0, 3));
+    oqG.add(oqMat(0.5, 0.32, 0x5cc8ff, 1.0, 4));
+  }
+  // Bosilgan nuqtaga eng yaqin ko'rinib turgan oqim (tol m gacha): 500 m katakli indeks
+  let oqIdx = null;
+  const oqKey = (cx, cz) => (cx + 2000) * 4000 + (cz + 2000);
+  function buildOqIdx() {
+    if (oqIdx || !OQ) return;
+    oqIdx = new Map();
+    for (let li = 0, k = 0; li < OQ.n.length; li++) for (let m = 0; m < OQ.n[li]; m++, k += 2) {
+      const key = oqKey(Math.floor(toX(OQ.xy[k]) / 500), Math.floor(toZ(OQ.xy[k + 1]) / 500));
+      let arr = oqIdx.get(key); if (!arr) oqIdx.set(key, arr = []); arr.push(k, li);
+    }
+  }
+  function nearStream(x, z, tol = 80) {
+    if (!OQ || !oqG.visible) return -1;
+    buildOqIdx();
+    const cx = Math.floor(x / 500), cz = Math.floor(z / 500), R = Math.ceil(tol / 500); let best = -1, bd = tol * tol;
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      const arr = oqIdx.get(oqKey(cx + dx, cz + dz)); if (!arr) continue;
+      for (let i = 0; i < arr.length; i += 2) {
+        const li = arr[i + 1]; if (OQ.a[li] < uMinA.value) continue;
+        const ex = toX(OQ.xy[arr[i]]) - x, ez = toZ(OQ.xy[arr[i] + 1]) - z, d2 = ex * ex + ez * ez;
+        if (d2 < bd) { bd = d2; best = li; }
+      }
+    }
+    return best;
+  }
+
   /* ---------- Tuman nomlari (HTML yorliqlar) ---------- */
   const lblBox = $('labels');
   // yorliq ustida g'ildirak aylansa ham xarita yaqinlashsin
@@ -459,6 +556,16 @@ const D = /*__DATA__*/null;
     lblBox.appendChild(el);
     const x = toX(t.lx), z = toZ(t.ly);
     return { el, stem: el.querySelector('.stem'), pill: el.querySelector('.pill'), x, z, h: heightAt(x, z) - ZB, w: 0, n: n + 1, area: t.area };
+  });
+  // DEM qamramagan joylar (masalan, Shohimardon): to'ldirilmaydi, o'rniga yozuv
+  (D.voids || []).forEach(v => {
+    const el = document.createElement('div');
+    el.className = 'lbl void';
+    el.innerHTML = '<div class="stem"></div><div class="dot"></div><div class="pill"></div>';
+    el.querySelector('.pill').textContent = `DEM ma’lumoti yo‘q (${v.km2.toLocaleString('ru-RU')} km²)`;
+    lblBox.appendChild(el);
+    const x = toX(v.x), z = toZ(v.y);
+    L.push({ el, stem: el.querySelector('.stem'), pill: el.querySelector('.pill'), x, z, h: heightAt(x, z) - ZB, w: 0, n: -1, area: -1 });
   });
   const order = L.slice().sort((a, b) => b.area - a.area);
   const v3 = new THREE.Vector3();
@@ -547,7 +654,7 @@ const D = /*__DATA__*/null;
     if (!st.touched && !st.sel && outlinePts.length) viewAll(false);
     updateCam();
   }
-  lineMats.forEach(m => { m.userData.w0 = m.uniforms.uW.value; });
+  lineMats.forEach(m => { m.userData.w0 = m.uniforms.uW.value; });  // oqim materiallarida uW = 1 (faqat piksel nisbati)
 
   // Kursor nuri bo'ylab relyef bilan kesishuv (balandlik setkasi bo'ylab qadam)
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -725,6 +832,11 @@ const D = /*__DATA__*/null;
     $('pZ').textContent = '≈ ' + elevFull(h.x, h.z).toFixed(1) + ' m';
     $('pSrc').textContent = D.t4 ? 'asl DEM pikseli yuklanmoqda…' : 'DEM 50 m to‘ridan, taxminiy';
     $('pT').textContent = T[h.id - 1].name;
+    // qidiruv radiusi ~6 ekran pikseli (uzoqdan qaraganda ingichka chiziqqa ham tegish oson bo'lsin)
+    const mpp = camera.position.distanceTo(v3.set(h.x, h.y, h.z)) * 2 * Math.tan(camera.fov * Math.PI / 360) / stage.clientHeight;
+    const sq = nearStream(h.x, h.z, Math.min(1500, Math.max(60, 6 * mpp)));
+    $('pQ').textContent = sq < 0 ? '' : `Oqim yo‘li: Strahler ${OQ.o[sq]}, havza ${OQ.a[sq].toLocaleString('ru-RU')} km²`;
+    $('pQ').style.display = sq < 0 ? 'none' : '';
     $('pLL').textContent = `${ll[0].toFixed(5)}° N, ${ll[1].toFixed(5)}° E`;
     dirty();
     if (!D.t4) return;  // 4 m bo'laklarsiz yig'ilgan
@@ -780,6 +892,12 @@ const D = /*__DATA__*/null;
   $('ctlT').addEventListener('click', () => { const o = $('ctl').classList.toggle('open'); $('ctlT').setAttribute('aria-expanded', o); });
   $('showLbl').addEventListener('change', e => { st.lbl = e.target.checked; dirty(); });
   $('showBnd').addEventListener('change', e => { st.bnd = e.target.checked; bnd.visible = st.bnd; dirty(); });
+  if (OQ) {
+    $('oqRow').style.display = 'block'; $('lgOq').style.display = 'flex';
+    const setMin = () => { uMinA.value = OQ_STEPS[+$('oqMin').value]; $('oqv').textContent = `havza ≥ ${uMinA.value} km²`; dirty(); };
+    $('oqMin').addEventListener('input', setMin); setMin();
+    $('showOq').addEventListener('change', e => { oqG.visible = e.target.checked; $('oqMin').disabled = !e.target.checked; dirty(); });
+  }
   $('vAll').addEventListener('click', () => {
     const t0 = cam.t.clone(), r0 = cam.r, p0 = cam.ph, th0 = cam.th;
     viewAll(false); const t1 = cam.t.clone(), r1 = cam.r, p1 = cam.ph;
@@ -801,6 +919,8 @@ const D = /*__DATA__*/null;
   const hm = /t=(\d+)/.exec(location.hash);
   if (hm) { const v = +hm[1], n = T.findIndex(t => t.code === v) + 1 || (v <= T.length ? v : 0); if (n) select(n, 'jump'); }
   msg.style.display = 'none';
+  // oqim indeksini birinchi bosishdan oldin, bo'sh vaqtda tayyorlab qo'yish
+  (window.requestIdleCallback || (f => setTimeout(f, 1500)))(() => buildOqIdx());
   console.info(`Tayyor: ${Math.round(performance.now())} ms, ${nv} tugun, ${nc * 2} uchburchak`);
   (function loop() {
     requestAnimationFrame(loop);
@@ -809,7 +929,7 @@ const D = /*__DATA__*/null;
     placeLabels(stage.clientWidth, stage.clientHeight);
     placePin();
   })();
-  window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY };
+  window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY, OQ, nearStream, groundY };
 })().catch(e => { const m = document.getElementById('msg'); m.textContent = 'Xato: ' + e.message; m.className = 'err'; console.error(e); });
 </script>
 </body>
