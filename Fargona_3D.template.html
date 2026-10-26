@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Farg‘ona 3D relyef</title>
+<meta name="description" content="Farg‘ona viloyati relyefi (DEM) va tuman chegaralari — 3D interaktiv xarita">
+<meta property="og:title" content="Farg‘ona viloyati — 3D relyef">
+<meta property="og:description" content="Relyef (DEM) va 19 ta tuman/shahar chegarasi. Telefonda ham ochiladi.">
+<meta property="og:type" content="website">
+<!--__OGIMG__-->
+<meta name="theme-color" content="#0b111a">
+<style>
+  :root {
+    --bg: #0b111a;
+    --panel: rgba(14, 20, 30, .84);
+    --panel-line: rgba(255, 255, 255, .10);
+    --text: #e9eef4;
+    --muted: #9aa8b8;
+    --accent: #4fb0ff;
+    --chip: rgba(255, 255, 255, .06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #stage { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 30%, #253449 0%, #121a26 55%, #090d14 100%); }
+  #cv { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #cv.drag { cursor: grabbing; }
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; left: 0; top: 0; will-change: transform; }
+  .lbl .stem { position: absolute; left: -.5px; bottom: 0; width: 1px; background: rgba(255, 255, 255, .8); }
+  .lbl .dot { position: absolute; left: -3px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .6); }
+  .lbl .pill { position: absolute; left: 0; transform: translateX(-50%); white-space: nowrap; padding: 3px 8px;
+    border-radius: 6px; background: rgba(10, 15, 24, .80); border: 1px solid rgba(255, 255, 255, .22); color: #fff;
+    font-weight: 600; font-size: 12.5px; pointer-events: auto; cursor: pointer; transition: background .15s, color .15s; }
+  .lbl.city .pill { background: rgba(70, 22, 22, .82); }
+  .lbl.hov .pill { border-color: #fff; }
+  .lbl.sel .pill { background: #fff; color: #0b111a; border-color: #fff; }
+  .lbl.sel .stem, .lbl.sel .dot { background: #ffd84a; }
+
+  #pinBox { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #pin { position: absolute; left: 0; top: 0; display: none; will-change: transform; }
+  #pin .stem { position: absolute; left: -1px; bottom: 0; width: 2px; height: 30px; background: #ffd84a; }
+  #pin .dot { position: absolute; left: -5px; bottom: -5px; width: 10px; height: 10px; border-radius: 50%;
+    background: #ffd84a; box-shadow: 0 0 0 2px #0b111a; }
+  #pin .pop { position: absolute; bottom: 30px; left: 0; transform: translateX(-50%); background: #fff; color: #0b111a;
+    border-radius: 8px; padding: 7px 28px 7px 10px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+    pointer-events: auto; font-size: 11.5px; line-height: 1.35; }
+  #pin .pop b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+  #pin .pop span { display: block; color: #4a5566; font-variant-numeric: tabular-nums; }
+  #pin .x { position: absolute; right: 3px; top: 3px; width: 22px; height: 22px; border: 0; border-radius: 5px;
+    background: transparent; color: #4a5566; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+  #pin .x:hover { background: #eef1f5; }
+  .card { position: absolute; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 8px 28px rgba(0, 0, 0, .35); }
+  #ctl { left: 16px; top: 16px; width: 280px; padding: 14px 14px 12px; }
+  #ctl .hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #ctlT { display: none; border: 1px solid var(--panel-line); background: var(--chip); color: var(--text); font: inherit;
+    font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  #ctl h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+  #ctl .sub { color: var(--muted); margin: 2px 0 12px; font-size: 12px; }
+  .row { margin: 10px 0 0; }
+  .row > label.t { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+  .row > label.t b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  select { width: 100%; background: #111926; color: var(--text); border: 1px solid var(--panel-line); border-radius: 6px;
+    padding: 6px 8px; font: inherit; }
+  .seg { display: flex; background: var(--chip); border-radius: 7px; padding: 2px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px;
+    padding: 5px 4px; border-radius: 5px; cursor: pointer; }
+  .seg button.on { background: #2b3a50; color: var(--text); }
+  .chk { display: flex; gap: 14px; flex-wrap: wrap; }
+  .chk label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .chk input { accent-color: var(--accent); margin: 0; }
+  .btns { display: flex; gap: 6px; }
+  .btns button { flex: 1; border: 1px solid var(--panel-line); background: var(--chip); color: var(--text); font: inherit;
+    font-size: 12px; padding: 6px 4px; border-radius: 6px; cursor: pointer; }
+  .btns button:hover, .seg button:hover { color: #fff; }
+
+  #legend { left: 16px; bottom: 44px; width: 280px; padding: 10px 14px 8px; }
+  #legend .t { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; }
+  #ramp { height: 12px; border-radius: 3px; margin: 6px 0 2px; }
+  #ticks { position: relative; height: 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #ticks span { position: absolute; transform: translateX(-50%); top: 0; }
+  #ticks span::before { content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 4px; background: var(--muted); }
+
+  #info { right: 16px; top: 16px; width: 270px; padding: 14px; display: none; }
+  #info h2 { margin: 0; font-size: 17px; padding-right: 22px; }
+  #info .cyr { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  #info table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  #info td { padding: 4px 0; border-top: 1px solid var(--panel-line); }
+  #info td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  #info .x { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; border: 0; background: transparent;
+    color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 6px; }
+  #info .x:hover { background: var(--chip); color: #fff; }
+  #info .bar { height: 6px; border-radius: 3px; margin: 10px 0 2px; position: relative; }
+  #info .bar i { position: absolute; top: -3px; width: 2px; height: 12px; background: #fff; border-radius: 1px; }
+
+  #status { left: 0; right: 0; bottom: 0; border-radius: 0; border-width: 1px 0 0; padding: 6px 16px; display: flex;
+    gap: 18px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+  #status b { color: var(--text); font-weight: 600; }
+  #status .hint { margin-left: auto; }
+
+  #compass { right: 16px; bottom: 44px; width: 52px; height: 52px; border-radius: 50%; cursor: pointer; padding: 0; }
+  #compass svg { width: 100%; height: 100%; display: block; }
+
+  #msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px;
+    color: var(--muted); pointer-events: none; }
+  #msg.err { color: #ffb4a8; padding: 24px; text-align: center; pointer-events: auto; }
+
+  @media (max-width: 720px) {
+    #ctl { left: 8px; top: 8px; width: calc(100% - 16px); max-width: 340px; padding: 10px 12px; }
+    #ctl .sub, #status .hint, #legend, #ctlBody { display: none; }
+    #ctlT { display: block; }
+    #ctl.open #ctlBody { display: block; }
+    #ctl h1 { font-size: 15px; }
+    .lbl .pill { font-size: 11px; padding: 2px 6px; }
+    #info { right: 8px; left: 8px; top: auto; bottom: 40px; width: auto; }
+    #compass { right: 8px; top: 66px; bottom: auto; width: 44px; height: 44px; }
+    #ctl { z-index: 3; }
+    #status { gap: 12px; padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="labels"></div>
+  <div id="pinBox"><div id="pin"><div class="stem"></div><div class="dot"></div>
+    <div class="pop"><button class="x" id="pinX" title="Yopish">×</button><b id="pZ">—</b><span id="pSrc"></span><span id="pT"></span><span id="pLL"></span></div>
+  </div></div>
+  <div id="msg">Yuklanmoqda…</div>
+
+  <div id="ctl" class="card">
+    <div class="hd"><h1 id="ttl">Farg‘ona viloyati</h1><button id="ctlT" aria-expanded="false">Sozlamalar</button></div>
+    <div class="sub" id="sub">Relyef (DEM) va tuman chegaralari</div>
+    <div id="ctlBody">
+    <div class="row">
+      <label class="t" for="tsel">Tuman</label>
+      <select id="tsel"><option value="0">— butun viloyat —</option></select>
+    </div>
+    <div class="row">
+      <label class="t" for="exag">Vertikal mubolag‘a <b id="exagv">×3</b></label>
+      <input id="exag" type="range" min="1" max="8" step="0.5" value="3">
+    </div>
+    <div class="row">
+      <label class="t">Rang shkalasi</label>
+      <div class="seg" id="mode">
+        <button data-m="bal" class="on">Muvozanatli</button>
+        <button data-m="lin">Chiziqli</button>
+        <button data-m="eq">Kvantil</button>
+      </div>
+    </div>
+    <div class="row chk">
+      <label><input type="checkbox" id="showLbl" checked> Tuman nomlari</label>
+      <label><input type="checkbox" id="showBnd" checked> Chegaralar</label>
+    </div>
+    <div class="row btns">
+      <button id="vAll">Umumiy ko‘rinish</button>
+      <button id="vTop">Yuqoridan</button>
+    </div>
+    </div>
+  </div>
+
+  <div id="info" class="card">
+    <button class="x" id="infoX" title="Yopish">×</button>
+    <h2 id="iName"></h2>
+    <div class="cyr" id="iCyr"></div>
+    <table>
+      <tr><td>Maydoni</td><td id="iArea"></td></tr>
+      <tr><td>Eng past nuqta</td><td id="iMin"></td></tr>
+      <tr><td>O‘rtacha balandlik</td><td id="iMean"></td></tr>
+      <tr><td>Eng baland nuqta</td><td id="iMax"></td></tr>
+      <tr><td>SOATO kodi</td><td id="iCode"></td></tr>
+    </table>
+    <div class="bar" id="iBar"></div>
+  </div>
+
+  <div id="legend" class="card">
+    <div class="t"><span>Balandlik, m</span><span id="lgMode">muvozanatli</span></div>
+    <div id="ramp"></div>
+    <div id="ticks"></div>
+  </div>
+
+  <button id="compass" class="card" title="Shimolga burish">
+    <svg viewBox="-26 -26 52 52"><g id="needle">
+      <text x="0" y="-17" text-anchor="middle" font-size="8.5" font-weight="700" fill="#fff">N</text>
+      <path d="M0 -14 L5 0 L-5 0 Z" fill="#ff5a4e"/><path d="M0 14 L5 0 L-5 0 Z" fill="#c9d3df"/></g>
+    </svg>
+  </button>
+
+  <div id="status" class="card">
+    <span>Balandlik: <b id="sZ">—</b></span>
+    <span>Tuman: <b id="sT">—</b></span>
+    <span id="sLL">—</span>
+    <span class="hint">Chap tugma — aylantirish · o‘ng tugma / Shift — surish · g‘ildirak — yaqinlashtirish · bosish — tuman va nuqta balandligi · ikki marta bosish — yaqinlashish</span>
+  </div>
+</div>
+
+<script>/*__THREE__*/</script>
+<script>
+const D = /*__DATA__*/null;
+(async function main() {
+  const $ = id => document.getElementById(id), msg = $('msg');
+  const fail = t => { msg.textContent = t; msg.className = 'err'; };
+  if (!D) return fail('Ma’lumot topilmadi: sahifa build.py orqali yig‘ilishi kerak.');
+  if (typeof DecompressionStream === 'undefined') return fail('Brauzer eskirgan (DecompressionStream yo‘q). Chrome, Edge yoki Firefox ning yangi versiyasida oching.');
+
+  /* ---------- Ma'lumotni ochish ---------- */
+  async function unpack(b64) {
+    const bin = await (await fetch('data:application/octet-stream;base64,' + b64)).arrayBuffer();
+    const s = new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  let W = D.w, H = D.h, RES = D.res, N = W * H;
+  const raw = await unpack(D.dem), d16 = new Int16Array(raw.buffer, 0, N);
+  let E = new Float32Array(N);  // balandlik, m
+  for (let i = 0, acc = 0; i < N; i++) { acc += d16[i]; E[i] = acc / 10; }
+  let ID = await unpack(D.ids);  // 0 = viloyatdan tashqarida, k = D.tum[k-1]
+  // Telefon va planshetda to'r har ikkinchi tugundan olinadi (qadam 2x, uchburchaklar 4 marta kam)
+  const FULL = { E, W, H, RES };  // balandlik o'qish uchun har doim to'liq (50 m) setka
+  // ?lite=1 — kuchsiz kompyuterda ham yengil rejim
+  const LITE = /[?&]lite=1/.test(location.search) || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 1000);
+  if (LITE) {
+    const W2 = ((W - 1) >> 1) + 1, H2 = ((H - 1) >> 1) + 1, E2 = new Float32Array(W2 * H2), I2 = new Uint8Array(W2 * H2);
+    for (let i = 0; i < H2; i++) for (let j = 0; j < W2; j++) { const k = 2 * i * W + 2 * j; E2[i * W2 + j] = E[k]; I2[i * W2 + j] = ID[k]; }
+    W = W2; H = H2; RES *= 2; N = W * H; E = E2; ID = I2;
+  }
+  const T = D.tum;
+
+  // Sahna koordinatalari: x = sharq, z = janub, y = balandlik (ZB dan, mubolag'a guruh masshtabida)
+  const CX = D.x0 + (W - 1) * RES / 2, CY = D.y0 - (H - 1) * RES / 2;
+  const toX = X => X - CX, toZ = Y => CY - Y;
+  const X0 = D.x0 - CX, Z0 = CY - D.y0;  // tugun (0,0) ning sahnadagi joyi
+  const ZB = Math.floor(D.zmin / 100) * 100 - 100;
+  const st = { exag: 3, mode: 'bal', hov: 0, sel: 0, lbl: true, bnd: true };
+
+  // Uchburchaklar diagonali: kichik balandlik farqi bo'yicha (to'r va balandlik o'qish bir xil bo'lishi uchun)
+  const diagA = (k) => Math.abs(E[k] - E[k + W + 1]) <= Math.abs(E[k + 1] - E[k + W]);
+  function heightAt(x, z) {  // sahna x,z -> metr (to'rning o'zi bo'yicha)
+    let fj = (x - X0) / RES, fi = (z - Z0) / RES;
+    if (fj < 0) fj = 0; if (fi < 0) fi = 0; if (fj > W - 1.001) fj = W - 1.001; if (fi > H - 1.001) fi = H - 1.001;
+    const j = fj | 0, i = fi | 0, u = fj - j, v = fi - i, k = i * W + j;
+    const a = E[k], b = E[k + 1], c = E[k + W], d = E[k + W + 1];
+    if (diagA(k)) return u >= v ? a + (b - a) * u + (d - b) * v : a + (d - c) * u + (c - a) * v;
+    return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);
+  }
+  function idAt(x, z) {
+    const j = Math.round((x - X0) / RES), i = Math.round((z - Z0) / RES);
+    return i < 0 || j < 0 || i >= H || j >= W ? 0 : ID[i * W + j];
+  }
+
+  /* ---------- Renderer ---------- */
+  const stage = $('stage'), cv = $('cv');
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true }); }
+  catch (e) { return fail('WebGL ishlamayapti. Brauzerda apparat tezlatish (GPU) yoqilganini tekshiring va chrome://restart qiling.'); }
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(42, 1, 50, 2e6);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.46));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.80); sun.position.set(-1, 1.25, -1); scene.add(sun);
+  const world = new THREE.Group(); world.scale.y = st.exag; scene.add(world);
+
+  /* ---------- Rang shkalasi (past — yashil, baland — qizil) ---------- */
+  const STOPS = ['#1a9850', '#66bd63', '#a6d96a', '#d9ef8b', '#fee08b', '#fdae61', '#f46d43', '#d73027', '#a50026']
+    .map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  function ramp(t) {
+    const f = Math.max(0, Math.min(1, t)) * (STOPS.length - 1), i = Math.min(STOPS.length - 2, f | 0), u = f - i, a = STOPS[i], b = STOPS[i + 1];
+    return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+  }
+  const ZMIN = D.zmin, ZMAX = D.zmax, NB = 1024, cdf = new Float32Array(NB + 1);
+  {
+    const hist = new Float64Array(NB); let n = 0;
+    for (let k = 0; k < N; k++) if (ID[k]) { hist[Math.min(NB - 1, ((E[k] - ZMIN) / (ZMAX - ZMIN) * NB) | 0)]++; n++; }
+    for (let b = 0, s = 0; b < NB; b++) { s += hist[b]; cdf[b + 1] = s / n; }
+  }
+  // e -> t: chiziqli; kvantil (teng taqsimot); muvozanatli = ikkalasining o'rtachasi
+  function tOf(e, mode) {
+    const l = Math.max(0, Math.min(1, (e - ZMIN) / (ZMAX - ZMIN)));
+    if (mode === 'lin') return l;
+    const f = l * NB, b = Math.min(NB - 1, f | 0), q = cdf[b] + (cdf[b + 1] - cdf[b]) * (f - b);
+    return mode === 'eq' ? q : 0.5 * (q + Math.sqrt(l));
+  }
+  const LUT_N = 512, lutData = new Uint8Array(LUT_N * 4), lutTex = new THREE.DataTexture(lutData, LUT_N, 1, THREE.RGBAFormat);
+  lutTex.magFilter = lutTex.minFilter = THREE.LinearFilter;
+  function buildLut() {
+    for (let k = 0; k < LUT_N; k++) {
+      const c = ramp(tOf(ZMIN + (ZMAX - ZMIN) * k / (LUT_N - 1), st.mode));
+      lutData.set([c[0], c[1], c[2], 255], k * 4);
+    }
+    lutTex.needsUpdate = true;
+    // Afsona: rang chizig'i va balandlik belgilari
+    const css = [];
+    for (let k = 0; k <= 40; k++) { const c = ramp(k / 40); css.push(`rgb(${c.map(Math.round).join(',')}) ${k * 2.5}%`); }
+    $('ramp').style.background = `linear-gradient(90deg, ${css.join(',')})`;
+    const ticks = [Math.round(ZMIN)], step = st.mode === 'lin' ? 250 : 100;
+    for (let e = Math.ceil(ZMIN / step + 0.01) * step; e < ZMAX; e += step) ticks.push(e);
+    ticks.push(Math.round(ZMAX));
+    let html = '', lastX = -99;
+    ticks.forEach((e, n) => {
+      const x = tOf(e, st.mode) * 100, end = n === ticks.length - 1;
+      if (x - lastX < 11 && !end) return;
+      if (end && x - lastX < 11) html = html.replace(/<span[^>]*>[^<]*<\/span>$/, '');
+      html += `<span style="left:${x.toFixed(2)}%">${e}</span>`; lastX = x;
+    });
+    $('ticks').innerHTML = html;
+    $('lgMode').textContent = { bal: 'muvozanatli', lin: 'chiziqli', eq: 'kvantil' }[st.mode];
+  }
+  buildLut();
+
+  const idTex = new THREE.DataTexture(ID, W, H, THREE.LuminanceFormat, THREE.UnsignedByteType);
+  idTex.unpackAlignment = 1; idTex.magFilter = idTex.minFilter = THREE.NearestFilter; idTex.needsUpdate = true;
+
+  /* ---------- Relyef to'ri ---------- */
+  const inc = new Uint8Array((H - 1) * (W - 1)), vmap = new Int32Array(N).fill(-1);
+  let nv = 0, nc = 0;
+  for (let i = 0; i < H - 1; i++) for (let j = 0; j < W - 1; j++) {
+    const k = i * W + j;
+    if (ID[k] && ID[k + 1] && ID[k + W] && ID[k + W + 1]) {
+      inc[i * (W - 1) + j] = 1; nc++;
+      for (const q of [k, k + 1, k + W, k + W + 1]) if (vmap[q] < 0) vmap[q] = nv++;
+    }
+  }
+  const pos = new Float32Array(nv * 3), nrm = new Float32Array(nv * 3);
+  const Eat = (i, j, k0) => (i < 0 || j < 0 || i >= H || j >= W) ? E[k0] : E[i * W + j];
+  for (let i = 0; i < H; i++) for (let j = 0; j < W; j++) {
+    const k = i * W + j, v = vmap[k]; if (v < 0) continue;
+    pos[v * 3] = X0 + j * RES; pos[v * 3 + 1] = E[k] - ZB; pos[v * 3 + 2] = Z0 + i * RES;
+    const hx = (Eat(i, j + 1, k) - Eat(i, j - 1, k)) / (2 * RES), hz = (Eat(i + 1, j, k) - Eat(i - 1, j, k)) / (2 * RES);
+    const l = Math.hypot(hx, 1, hz); nrm[v * 3] = -hx / l; nrm[v * 3 + 1] = 1 / l; nrm[v * 3 + 2] = -hz / l;
+  }
+  const idx = new Uint32Array(nc * 6);
+  for (let i = 0, p = 0; i < H - 1; i++) for (let j = 0; j < W - 1; j++) {
+    if (!inc[i * (W - 1) + j]) continue;
+    const k = i * W + j, a = vmap[k], b = vmap[k + 1], c = vmap[k + W], d = vmap[k + W + 1];
+    if (diagA(k)) { idx[p++] = a; idx[p++] = c; idx[p++] = d; idx[p++] = a; idx[p++] = d; idx[p++] = b; }
+    else { idx[p++] = a; idx[p++] = c; idx[p++] = b; idx[p++] = b; idx[p++] = c; idx[p++] = d; }
+  }
+  const tGeo = new THREE.BufferGeometry();
+  tGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  tGeo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  tGeo.setIndex(new THREE.BufferAttribute(idx, 1));
+  tGeo.computeBoundingSphere();
+
+  const U = {
+    uLut: { value: lutTex }, uIds: { value: idTex }, uHov: { value: 0 }, uSel: { value: 0 },
+    uZ: { value: new THREE.Vector2(ZMIN - ZB, ZMAX - ZB) },
+    uGrid: { value: new THREE.Vector4(X0 - RES / 2, Z0 - RES / 2, 1 / (W * RES), 1 / (H * RES)) }
+  };
+  const tMat = new THREE.MeshLambertMaterial({ color: 0xffffff, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+  tMat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform vec4 uGrid;\nvarying float vElev;\nvarying vec2 vIdUv;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvElev = position.y;\nvIdUv = vec2((position.x - uGrid.x) * uGrid.z, (position.z - uGrid.y) * uGrid.w);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uLut;\nuniform sampler2D uIds;\nuniform float uHov;\nuniform float uSel;\nuniform vec2 uZ;\nvarying float vElev;\nvarying vec2 vIdUv;')
+      .replace('#include <color_fragment>', `
+        diffuseColor.rgb = texture2D(uLut, vec2(clamp((vElev - uZ.x) / (uZ.y - uZ.x), 0.0, 1.0), 0.5)).rgb;
+        float did = floor(texture2D(uIds, vIdUv).r * 255.0 + 0.5);
+        if (uSel > 0.5 && abs(did - uSel) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.6) * 0.72;
+        if (uHov > 0.5 && abs(did - uHov) < 0.5 && abs(did - uSel) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.22);`);
+  };
+  const terrain = new THREE.Mesh(tGeo, tMat); world.add(terrain);
+
+  /* ---------- Platforma devorlari (to'r cheti bo'ylab pastga) ---------- */
+  {
+    const P = [], Nn = [], C = [], I = [];
+    const top = [0.55, 0.47, 0.38], bot = [0.20, 0.17, 0.14];
+    const quad = (k1, k2, nx, nz) => {
+      const b = P.length / 3, pts = [k1, k2];
+      for (const k of pts) {
+        const i = (k / W) | 0, j = k % W, x = X0 + j * RES, z = Z0 + i * RES;
+        P.push(x, E[k] - ZB, z, x, 0, z); Nn.push(nx, 0, nz, nx, 0, nz); C.push(...top, ...bot);
+      }
+      I.push(b, b + 1, b + 2, b + 2, b + 1, b + 3);
+    };
+    const cell = (i, j) => i >= 0 && j >= 0 && i < H - 1 && j < W - 1 && inc[i * (W - 1) + j] === 1;
+    for (let i = 0; i < H; i++) for (let j = 0; j < W - 1; j++) {  // gorizontal qirralar
+      const up = cell(i - 1, j), dn = cell(i, j);
+      if (up !== dn) quad(i * W + j, i * W + j + 1, 0, up ? 1 : -1);
+    }
+    for (let i = 0; i < H - 1; i++) for (let j = 0; j < W; j++) {  // vertikal qirralar
+      const lf = cell(i, j - 1), rt = cell(i, j);
+      if (lf !== rt) quad(i * W + j, (i + 1) * W + j, lf ? 1 : -1, 0);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    g.setIndex(I);
+    world.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+  }
+
+  // Platforma ostidagi to'r (10 km katak)
+  const SPAN = Math.max(W, H) * RES;
+  {
+    const grid = new THREE.GridHelper(Math.ceil(SPAN * 1.6 / 10000) * 10000, Math.ceil(SPAN * 1.6 / 10000), 0x3b4f6a, 0x223044);
+    grid.material.transparent = true; grid.material.opacity = 0.55; grid.position.y = -2; scene.add(grid);
+  }
+
+  /* ---------- Chegaralar: ekranda qalinligi o'zgarmas chiziqlar ---------- */
+  const lineMats = [];
+  function fatLines(lists, width, color, alpha, lift, order) {
+    let nseg = 0; lists.forEach(l => { nseg += l.length / 2 - 1; });
+    const p = new Float32Array(nseg * 12), o = new Float32Array(nseg * 12), s = new Float32Array(nseg * 4), ix = new Uint32Array(nseg * 6);
+    let q = 0;
+    lists.forEach(l => {
+      const xs = [], ys = [], zs = [];
+      for (let m = 0; m < l.length; m += 2) { const x = toX(l[m]), z = toZ(l[m + 1]); xs.push(x); zs.push(z); ys.push(heightAt(x, z) - ZB + lift); }
+      for (let m = 0; m + 1 < xs.length; m++, q++) {
+        const A = [xs[m], ys[m], zs[m]], B = [xs[m + 1], ys[m + 1], zs[m + 1]];
+        p.set([...A, ...A, ...B, ...B], q * 12); o.set([...B, ...B, ...A, ...A], q * 12); s.set([1, -1, -1, 1], q * 4);
+        const b = q * 4; ix.set([b, b + 1, b + 3, b, b + 3, b + 2], q * 6);
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    g.setAttribute('other', new THREE.BufferAttribute(o, 3));
+    g.setAttribute('side', new THREE.BufferAttribute(s, 1));
+    g.setIndex(new THREE.BufferAttribute(ix, 1));
+    const m = new THREE.ShaderMaterial({
+      uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: width }, uC: { value: new THREE.Color(color) }, uA: { value: alpha } },
+      vertexShader: `attribute vec3 other; attribute float side; uniform vec2 uRes; uniform float uW;
+        void main() {
+          mat4 m = projectionMatrix * modelViewMatrix;
+          vec4 a = m * vec4(position, 1.0), b = m * vec4(other, 1.0);
+          vec2 sa = a.xy / a.w * uRes, sb = b.xy / b.w * uRes, d = sb - sa;
+          vec2 n = length(d) > 1e-6 ? normalize(vec2(-d.y, d.x)) : vec2(0.0);
+          a.xy += n * side * uW / uRes * a.w;
+          a.z -= 0.0004 * a.w;
+          gl_Position = a;
+        }`,
+      fragmentShader: `uniform vec3 uC; uniform float uA; void main() { gl_FragColor = vec4(uC, uA); }`,
+      transparent: alpha < 1, depthWrite: false, side: THREE.DoubleSide
+    });
+    lineMats.push(m);
+    const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = order; return mesh;
+  }
+  const bnd = new THREE.Group(); world.add(bnd);
+  bnd.add(fatLines(D.inner, 2.2, 0x0b0f16, 0.55, 4, 1));
+  bnd.add(fatLines(D.outer, 3.4, 0x0b0f16, 0.65, 4, 1));
+  bnd.add(fatLines(D.inner, 0.85, 0xffffff, 0.95, 4, 2));
+  bnd.add(fatLines(D.outer, 1.5, 0xffffff, 1.0, 4, 2));
+
+  /* ---------- Tuman nomlari (HTML yorliqlar) ---------- */
+  const lblBox = $('labels');
+  // yorliq ustida g'ildirak aylansa ham xarita yaqinlashsin
+  lblBox.addEventListener('wheel', e => { e.preventDefault(); cv.dispatchEvent(new WheelEvent('wheel', e)); }, { passive: false });
+  const L = T.map((t, n) => {
+    const el = document.createElement('div');
+    el.className = 'lbl' + (/shahri$/i.test(t.name) ? ' city' : '');
+    el.innerHTML = '<div class="stem"></div><div class="dot"></div><div class="pill"></div>';
+    el.querySelector('.pill').textContent = t.name;
+    el.querySelector('.pill').addEventListener('click', e => { e.stopPropagation(); select(n + 1, true); });
+    el.querySelector('.pill').addEventListener('pointerenter', () => setHov(n + 1));
+    el.querySelector('.pill').addEventListener('pointerleave', () => setHov(0));
+    lblBox.appendChild(el);
+    const x = toX(t.lx), z = toZ(t.ly);
+    return { el, stem: el.querySelector('.stem'), pill: el.querySelector('.pill'), x, z, h: heightAt(x, z) - ZB, w: 0, n: n + 1, area: t.area };
+  });
+  const order = L.slice().sort((a, b) => b.area - a.area);
+  const v3 = new THREE.Vector3();
+  function placeLabels(cw, ch) {
+    lblBox.style.display = st.lbl ? '' : 'none'; if (!st.lbl) return;
+    const placed = [], GAP = 4, PH = 22, BASE = 10;
+    // Tanlangan tuman birinchi joylashadi, keyin maydoni kattalar
+    const seq = st.sel ? [L[st.sel - 1], ...order.filter(l => l.n !== st.sel)] : order;
+    for (const l of seq) {
+      v3.set(l.x, l.h * st.exag, l.z).project(camera);
+      if (v3.z > 1 || v3.x < -1.2 || v3.x > 1.2 || v3.y < -1.2 || v3.y > 1.2) { l.el.style.display = 'none'; continue; }
+      l.el.style.display = '';
+      if (!l.w) l.w = l.pill.offsetWidth || 100;
+      const sx = (v3.x + 1) / 2 * cw, sy = (1 - v3.y) / 2 * ch;
+      let best = BASE;
+      for (const lift of [BASE, BASE + 26, BASE + 52, BASE + 78, BASE + 104]) {
+        const r = { l: sx - l.w / 2 - GAP, r: sx + l.w / 2 + GAP, t: sy - lift - PH - GAP, b: sy - lift + GAP };
+        if (!placed.some(q => r.l < q.r && r.r > q.l && r.t < q.b && r.b > q.t)) { best = lift; break; }
+        if (lift === BASE + 104) best = BASE;
+      }
+      placed.push({ l: sx - l.w / 2 - GAP, r: sx + l.w / 2 + GAP, t: sy - best - PH - GAP, b: sy - best + GAP });
+      l.el.style.transform = `translate(${sx.toFixed(1)}px,${sy.toFixed(1)}px)`;
+      l.stem.style.height = best + 'px'; l.pill.style.bottom = best + 'px';
+    }
+  }
+
+  /* ---------- Kamera ---------- */
+  const cam = { t: new THREE.Vector3(), r: 1, th: 0, ph: 0.8 };
+  const R_MIN = 400, R_MAX = SPAN * 6;
+  const groundY = (x, z) => (heightAt(x, z) - ZB) * st.exag;
+  let ndcLeft = -1;  // chap panel egallamagan joyning chap cheti (NDC)
+  function placeCamera() {
+    const sp = Math.sin(cam.ph);
+    camera.position.set(cam.t.x + cam.r * sp * Math.sin(cam.th), cam.t.y + cam.r * Math.cos(cam.ph), cam.t.z + cam.r * sp * Math.cos(cam.th));
+    camera.lookAt(cam.t); camera.updateMatrixWorld();
+    camera.near = Math.max(20, cam.r * 0.02); camera.far = cam.r * 4 + SPAN * 2; camera.updateProjectionMatrix();
+  }
+  // Nuqtalar (x, h, z; h — metr) ekranga sig'adigan eng yaqin masofa: haqiqiy proyeksiya bo'yicha ikkiga bo'lib qidirish
+  function fitView(pts, ph, th) {
+    let mx0 = 1e9, mx1 = -1e9, mz0 = 1e9, mz1 = -1e9;
+    for (let k = 0; k < pts.length; k += 3) { mx0 = Math.min(mx0, pts[k]); mx1 = Math.max(mx1, pts[k]); mz0 = Math.min(mz0, pts[k + 2]); mz1 = Math.max(mz1, pts[k + 2]); }
+    const x = (mx0 + mx1) / 2, z = (mz0 + mz1) / 2, t = new THREE.Vector3(x, groundY(x, z), z);
+    const save = [cam.t.clone(), cam.r, cam.ph, cam.th];
+    cam.t.copy(t); cam.ph = ph; cam.th = th;
+    let lo = R_MIN, hi = R_MAX;
+    for (let it = 0; it < 24; it++) {
+      cam.r = Math.sqrt(lo * hi); placeCamera(); let ok = true;
+      for (let k = 0; k < pts.length && ok; k += 3) {
+        v3.set(pts[k], (pts[k + 1] - ZB) * st.exag, pts[k + 2]).project(camera);
+        ok = v3.z < 1 && v3.x > ndcLeft + 0.05 && v3.x < 0.95 && v3.y > -0.86 && v3.y < 0.80;
+      }
+      if (ok) hi = cam.r; else lo = cam.r;
+    }
+    [cam.t, cam.r, cam.ph, cam.th] = save; placeCamera();
+    return { t, r: hi, ph, th };
+  }
+  const outlinePts = [];
+  D.outer.forEach(l => { for (let m = 0; m < l.length; m += 40) { const x = toX(l[m]), z = toZ(l[m + 1]); outlinePts.push(x, heightAt(x, z), z); } });
+  function districtPts(n) {
+    const out = [];
+    for (let i = 0; i < H; i += 6) for (let j = 0; j < W; j += 6) { const k = i * W + j; if (ID[k] === n) out.push(X0 + j * RES, E[k], Z0 + i * RES); }
+    return out;
+  }
+  function viewAll(top) {
+    const v = fitView(outlinePts, top ? 0.001 : 0.82, 0);
+    cam.t.copy(v.t); cam.r = v.r; cam.ph = v.ph; cam.th = v.th;
+  }
+  let dirtyF = true; const dirty = () => { dirtyF = true; };
+  function updateCam() {
+    cam.r = Math.max(R_MIN, Math.min(R_MAX, cam.r));
+    placeCamera();
+    $('needle').setAttribute('transform', `rotate(${(cam.th * 180 / Math.PI).toFixed(1)})`);
+    dirty();
+  }
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    // Keng ekranda sahna markazi chap panel o'ngidagi bo'sh joy markaziga suriladi
+    const P = w > 720 ? $('ctl').offsetWidth + 16 : 0;
+    camera.aspect = (w + P) / h; ndcLeft = -1 + 2 * P / w;
+    if (P) camera.setViewOffset(w + P, h, 0, 0, w, h); else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+    const pr = renderer.getPixelRatio(); lineMats.forEach(m => m.uniforms.uRes.value.set(w * pr / 2, h * pr / 2));
+    lineMats.forEach(m => { m.uniforms.uW.value = m.userData.w0 * pr; });
+    // Telefon burilsa va foydalanuvchi hali xaritani qimirlatmagan bo'lsa, umumiy ko'rinish qayta moslanadi
+    if (!st.touched && !st.sel && outlinePts.length) viewAll(false);
+    updateCam();
+  }
+  lineMats.forEach(m => { m.userData.w0 = m.uniforms.uW.value; });
+
+  // Kursor nuri bo'ylab relyef bilan kesishuv (balandlik setkasi bo'ylab qadam)
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const XMIN = X0, XMAX = X0 + (W - 1) * RES, ZMN = Z0, ZMX = Z0 + (H - 1) * RES;
+  function pickGround(cx, cy) {
+    const r = cv.getBoundingClientRect();
+    ndc.set((cx - r.left) / r.width * 2 - 1, -(cy - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
+    const o = ray.ray.origin, d = ray.ray.direction, yTop = (ZMAX - ZB) * st.exag + 1;
+    let t0 = 0, t1 = 1e9;
+    for (const [oo, dd, lo, hi] of [[o.x, d.x, XMIN, XMAX], [o.y, d.y, -1, yTop], [o.z, d.z, ZMN, ZMX]]) {
+      if (Math.abs(dd) < 1e-12) { if (oo < lo || oo > hi) return null; continue; }
+      let a = (lo - oo) / dd, b = (hi - oo) / dd; if (a > b) [a, b] = [b, a];
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    }
+    if (t0 >= t1) return null;
+    const hl = Math.hypot(d.x, d.z), dt = Math.min(RES * 0.5 / Math.max(hl, 1e-3), RES * 4);
+    // viloyatdan tashqarida relyef yo'q: u yerda "yer" juda pastda deb olinadi
+    const above = t => { const x = o.x + d.x * t, z = o.z + d.z * t; return o.y + d.y * t - (idAt(x, z) ? groundY(x, z) : -1e7); };
+    let pt = t0, pv = above(t0);
+    for (let t = t0 + dt; t <= t1 + dt; t += dt) {
+      const tt = Math.min(t, t1), v = above(tt);
+      if (v <= 0 && pv > 0) {
+        let a = pt, b = tt;
+        for (let k = 0; k < 18; k++) { const m = (a + b) / 2; if (above(m) > 0) a = m; else b = m; }
+        const x = o.x + d.x * b, z = o.z + d.z * b, id = idAt(x, z);
+        if (id) return { x, z, y: groundY(x, z), id };
+      }
+      pt = tt; pv = v; if (tt === t1) break;
+    }
+    return null;
+  }
+
+  /* ---------- Holat: tanlash va ustiga kelish ---------- */
+  function setHov(n) {
+    if (st.hov === n) return; st.hov = n; U.uHov.value = n;
+    L.forEach(l => l.el.classList.toggle('hov', l.n === n)); cv.style.cursor = n ? 'pointer' : ''; dirty();
+  }
+  const fmt = v => Math.round(v).toLocaleString('ru-RU');
+  function select(n, fly) {
+    st.sel = n; U.uSel.value = n; $('tsel').value = String(n);
+    L.forEach(l => l.el.classList.toggle('sel', l.n === n));
+    if (!n) { $('info').style.display = 'none'; dirty(); return; }
+    const t = T[n - 1];
+    $('iName').textContent = t.name; $('iCyr').textContent = t.cyr;
+    $('iArea').textContent = t.area.toLocaleString('ru-RU') + ' km²';
+    $('iMin').textContent = fmt(t.zmin) + ' m'; $('iMean').textContent = fmt(t.zmean) + ' m'; $('iMax').textContent = fmt(t.zmax) + ' m';
+    $('iCode').textContent = t.code;
+    const a = tOf(t.zmin, st.mode), b = tOf(t.zmax, st.mode), cs = [];
+    for (let k = 0; k <= 10; k++) { const c = ramp(a + (b - a) * k / 10); cs.push(`rgb(${c.map(Math.round).join(',')})`); }
+    $('iBar').style.background = `linear-gradient(90deg, ${cs.join(',')})`;
+    $('iBar').innerHTML = `<i style="left:calc(${((tOf(t.zmean, st.mode) - a) / Math.max(1e-6, b - a) * 100).toFixed(1)}% - 1px)" title="o‘rtacha"></i>`;
+    $('info').style.display = 'block';
+    if (fly) {
+      // o'ngdagi ma'lumot kartasi ham joy egallaydi, shuning uchun biroz uzoqroqdan
+      const v = fitView(districtPts(n), 0.75, cam.th), r = Math.max(R_MIN * 4, v.r * 1.15);
+      if (fly === 'jump') { cam.t.copy(v.t); cam.r = r; cam.ph = v.ph; updateCam(); } else flyTo(v.t, r, v.ph);
+    }
+    dirty();
+  }
+  T.slice().map((t, n) => [t.name, n + 1]).sort((a, b) => a[0].localeCompare(b[0], 'uz')).forEach(([nm, n]) => {
+    const o = document.createElement('option'); o.value = n; o.textContent = nm; $('tsel').appendChild(o);
+  });
+  $('tsel').addEventListener('change', e => { const n = +e.target.value; select(n, true); if (!n) { viewAll(false); updateCam(); } });
+  $('infoX').addEventListener('click', () => select(0));
+
+  let flyAnim = 0;
+  function flyTo(p, r1, ph1) {
+    const t0 = cam.t.clone(), r0 = cam.r, p0 = cam.ph, start = performance.now();
+    cancelAnimationFrame(flyAnim);
+    const step = () => {
+      const u = Math.min(1, (performance.now() - start) / 700), s = u * u * (3 - 2 * u);
+      cam.t.lerpVectors(t0, p, s); cam.r = r0 + (r1 - r0) * s; if (ph1 !== undefined) cam.ph = p0 + (ph1 - p0) * s; updateCam();
+      if (u < 1) flyAnim = requestAnimationFrame(step);
+    };
+    step();
+  }
+
+  /* ---------- Sichqoncha va sensor ---------- */
+  const ptrs = new Map(); let down = null, pinch = null;
+  function pan(dx, dy) {
+    const k = cam.r * 0.0011 * (1000 / Math.max(400, cv.clientHeight));
+    cam.t.x += (-Math.cos(cam.th) * dx - Math.sin(cam.th) * dy) * k;
+    cam.t.z += (Math.sin(cam.th) * dx - Math.cos(cam.th) * dy) * k;
+    cam.t.x = Math.max(XMIN, Math.min(XMAX, cam.t.x)); cam.t.z = Math.max(ZMN, Math.min(ZMX, cam.t.z));
+    cam.t.y = groundY(cam.t.x, cam.t.z);
+  }
+  cv.addEventListener('pointerdown', e => {
+    try { cv.setPointerCapture(e.pointerId); } catch (_) { }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, shift: e.shiftKey });
+    down = ptrs.size === 1 ? { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 } : null; pinch = null;
+    cancelAnimationFrame(flyAnim); cv.classList.add('drag'); st.touched = true;
+  });
+  let hoverReq = 0, lastMove = null;
+  cv.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) { lastMove = e; if (!hoverReq) hoverReq = requestAnimationFrame(doHover); return; }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (ptrs.size === 1) {
+      if (down) down.moved += Math.abs(dx) + Math.abs(dy);
+      if (p.btn === 2 || p.btn === 1 || p.shift) pan(dx, dy);
+      else { cam.th -= dx * 0.005; cam.ph = Math.max(0.001, Math.min(1.45, cam.ph - dy * 0.005)); }
+      p.x = e.clientX; p.y = e.clientY; updateCam();
+    } else if (ptrs.size === 2) {
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...ptrs.values()], dd = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      if (pinch) { cam.r *= pinch.d / dd; pan(mx - pinch.mx, my - pinch.my); updateCam(); }
+      pinch = { d: dd, mx, my };
+    }
+  });
+  function doHover() {
+    hoverReq = 0; const e = lastMove; if (!e) return;
+    const h = pickGround(e.clientX, e.clientY);
+    setHov(h ? h.id : 0); showPoint(h);
+  }
+  // To'liq 50 m setkadan bilinear balandlik (telefonda to'r siyrak bo'lsa ham)
+  function elevFull(x, z) {
+    const F = FULL, fj = Math.max(0, Math.min(F.W - 1.001, (x - X0) / F.RES)), fi = Math.max(0, Math.min(F.H - 1.001, (z - Z0) / F.RES));
+    const j = fj | 0, i = fi | 0, u = fj - j, v = fi - i, k = i * F.W + j, A = F.E;
+    return (A[k] * (1 - u) + A[k + 1] * u) * (1 - v) + (A[k + F.W] * (1 - u) + A[k + F.W + 1] * u) * v;
+  }
+  function showPoint(h) {
+    if (!h) { $('sZ').textContent = '—'; $('sT').textContent = '—'; $('sLL').textContent = '—'; return; }
+    $('sZ').textContent = '≈ ' + fmt(elevFull(h.x, h.z)) + ' m';
+    $('sT').textContent = T[h.id - 1].name;
+    const ll = toLatLon(h.x + CX, CY - h.z);
+    $('sLL').textContent = `${ll[0].toFixed(5)}° N, ${ll[1].toFixed(5)}° E`;
+  }
+  // Mahalliy TM -> geografik / EPSG:3857: build.py da pyproj bilan hisoblangan 2.5 km jadvallardan bilinear
+  function llGrid(X, Y, a, b) {
+    const G = D.ll, fj = Math.max(0, Math.min(G.w - 1.001, (X - D.x0) / G.step)), fi = Math.max(0, Math.min(G.h - 1.001, (D.y0 - Y) / G.step));
+    const j = fj | 0, i = fi | 0, u = fj - j, v = fi - i, k = i * G.w + j;
+    const bl = A => (A[k] * (1 - u) + A[k + 1] * u) * (1 - v) + (A[k + G.w] * (1 - u) + A[k + G.w + 1] * u) * v;
+    return [bl(G[a]), bl(G[b])];
+  }
+  const toLatLon = (X, Y) => llGrid(X, Y, 'lat', 'lon'), toMerc = (X, Y) => llGrid(X, Y, 'mx', 'my');
+
+  /* ---------- Bosilgan nuqta: asl 4 m DEM pikselining qiymati ---------- */
+  // dem4m/<qator>_<ustun>.bin: 512x512 piksel, detsimetr, qator ichida delta, gzip (make_tiles.py)
+  const tileCache = new Map();
+  async function pixelElev(X, Y) {
+    const G = D.t4; if (!G) throw new Error('bo‘laklar yo‘q');
+    const [mx, my] = toMerc(X, Y);
+    const col = Math.floor((mx - G.left) / G.res), row = Math.floor((G.top - my) / G.res);
+    const tr = Math.floor(row / G.ts), tc = Math.floor(col / G.ts);
+    if (row < 0 || col < 0 || tr >= G.ny || tc >= G.nx || G.has[tr * G.nx + tc] !== '1') return null;
+    const key = tr + '_' + tc;
+    let t = tileCache.get(key);
+    if (!t) {
+      t = (async () => {
+        const r = await fetch('dem4m/' + key + '.bin'); if (!r.ok) throw new Error('HTTP ' + r.status);
+        const s = new Blob([await r.arrayBuffer()]).stream().pipeThrough(new DecompressionStream('gzip'));
+        const d = new Int16Array(await new Response(s).arrayBuffer()), q = new Int16Array(d.length), n = G.ts;
+        for (let i = 0; i < n; i++) for (let j = 0, acc = 0; j < n; j++) { acc += d[i * n + j]; q[i * n + j] = acc; }
+        return q;
+      })();
+      tileCache.set(key, t); t.catch(() => tileCache.delete(key));
+      if (tileCache.size > 40) tileCache.delete(tileCache.keys().next().value);
+    }
+    const q = await t, v = q[(row - tr * G.ts) * G.ts + (col - tc * G.ts)];
+    return v ? v / 10 : null;
+  }
+  const pin = { el: $('pin'), x: 0, z: 0, on: false, seq: 0 };
+  function placePin() {
+    if (!pin.on) { pin.el.style.display = 'none'; return; }
+    v3.set(pin.x, groundY(pin.x, pin.z), pin.z).project(camera);
+    if (v3.z > 1 || Math.abs(v3.x) > 1.05 || Math.abs(v3.y) > 1.05) { pin.el.style.display = 'none'; return; }
+    pin.el.style.display = 'block';
+    pin.el.style.transform = `translate(${((v3.x + 1) / 2 * stage.clientWidth).toFixed(1)}px,${((1 - v3.y) / 2 * stage.clientHeight).toFixed(1)}px)`;
+  }
+  async function setPin(h) {
+    const my = ++pin.seq;
+    if (!h) { pin.on = false; dirty(); return; }
+    Object.assign(pin, { on: true, x: h.x, z: h.z });
+    const X = h.x + CX, Y = CY - h.z, ll = toLatLon(X, Y);
+    $('pZ').textContent = '≈ ' + elevFull(h.x, h.z).toFixed(1) + ' m';
+    $('pSrc').textContent = D.t4 ? 'asl DEM pikseli yuklanmoqda…' : 'DEM 50 m to‘ridan, taxminiy';
+    $('pT').textContent = T[h.id - 1].name;
+    $('pLL').textContent = `${ll[0].toFixed(5)}° N, ${ll[1].toFixed(5)}° E`;
+    dirty();
+    if (!D.t4) return;  // 4 m bo'laklarsiz yig'ilgan
+    let v, ok = true;
+    try { v = await pixelElev(X, Y); } catch (e) { ok = false; }
+    if (my !== pin.seq) return;  // shu orada boshqa joy bosilgan
+    if (ok && v != null) { $('pZ').textContent = v.toFixed(1) + ' m'; $('pSrc').textContent = 'asl DEM pikseli (4 m)'; }
+    else $('pSrc').textContent = ok ? 'bu pikselda DEM qiymati yo‘q · 50 m to‘rdan' : '50 m to‘rdan taxminiy (piksel yuklanmadi)';
+  }
+  $('pinX').addEventListener('click', () => setPin(null));
+  addEventListener('keydown', e => { if (e.key === 'Escape') setPin(null); });
+  let clickTimer = 0, lastUp = 0;
+  const endPtr = e => {
+    const had = ptrs.has(e.pointerId); ptrs.delete(e.pointerId); pinch = null;
+    if (!ptrs.size) cv.classList.remove('drag');
+    if (had && down && !ptrs.size && down.moved < 6 && performance.now() - down.t < 600 && e.type === 'pointerup' && e.button === 0) {
+      const now = performance.now(), cx = e.clientX, cy = e.clientY;
+      if (clickTimer && now - lastUp < 320) {
+        clearTimeout(clickTimer); clickTimer = 0; lastUp = 0;
+        const h = pickGround(cx, cy); if (h) flyTo(new THREE.Vector3(h.x, h.y, h.z), cam.r * 0.4);
+      } else {
+        lastUp = now;
+        clickTimer = setTimeout(() => { clickTimer = 0; const h = pickGround(cx, cy); showPoint(h); setPin(h); select(h ? h.id : 0, !!h && h.id !== st.sel); }, 300);
+      }
+    }
+    if (!ptrs.size) down = null;
+  };
+  cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('pointerleave', () => { if (!ptrs.size) setHov(0); });
+  cv.addEventListener('wheel', e => {
+    e.preventDefault(); cancelAnimationFrame(flyAnim); st.touched = true;
+    const nr = Math.max(R_MIN, Math.min(R_MAX, cam.r * Math.exp(e.deltaY * 0.0012))), k = nr / cam.r;
+    if (k !== 1) {
+      const h = pickGround(e.clientX, e.clientY);
+      if (h) { cam.t.lerpVectors(new THREE.Vector3(h.x, h.y, h.z), cam.t, k); cam.t.y = groundY(cam.t.x, cam.t.z); }
+    }
+    cam.r = nr; updateCam();
+  }, { passive: false });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ---------- Boshqaruv paneli ---------- */
+  $('ttl').textContent = D.region;
+  $('sub').textContent = `Relyef (DEM) va ${T.length} ta tuman/shahar chegarasi · ${Math.round(ZMIN)}–${Math.round(ZMAX)} m`;
+  $('exag').addEventListener('input', e => {
+    st.exag = +e.target.value; $('exagv').textContent = '×' + st.exag;
+    world.scale.y = st.exag; cam.t.y = groundY(cam.t.x, cam.t.z); updateCam();
+  });
+  $('mode').addEventListener('click', e => {
+    const m = e.target.dataset && e.target.dataset.m; if (!m) return;
+    st.mode = m; [...$('mode').children].forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    buildLut(); if (st.sel) select(st.sel, false); dirty();
+  });
+  $('ctlT').addEventListener('click', () => { const o = $('ctl').classList.toggle('open'); $('ctlT').setAttribute('aria-expanded', o); });
+  $('showLbl').addEventListener('change', e => { st.lbl = e.target.checked; dirty(); });
+  $('showBnd').addEventListener('change', e => { st.bnd = e.target.checked; bnd.visible = st.bnd; dirty(); });
+  $('vAll').addEventListener('click', () => {
+    const t0 = cam.t.clone(), r0 = cam.r, p0 = cam.ph, th0 = cam.th;
+    viewAll(false); const t1 = cam.t.clone(), r1 = cam.r, p1 = cam.ph;
+    cam.t.copy(t0); cam.r = r0; cam.ph = p0; cam.th = th0;
+    select(0); animTh(0); flyTo(t1, r1, p1);
+  });
+  $('vTop').addEventListener('click', () => { animTh(0); flyTo(cam.t.clone(), cam.r, 0.001); });
+  $('compass').addEventListener('click', () => animTh(0));
+  function animTh(th1) {
+    const th0 = Math.atan2(Math.sin(cam.th), Math.cos(cam.th)), start = performance.now();
+    const step = () => { const u = Math.min(1, (performance.now() - start) / 700), s = u * u * (3 - 2 * u); cam.th = th0 + (th1 - th0) * s; updateCam(); if (u < 1) requestAnimationFrame(step); };
+    step();
+  }
+
+  /* ---------- Chizish ---------- */
+  new ResizeObserver(resize).observe(stage);
+  resize(); viewAll(false); updateCam();
+  // Havola orqali tumanni ochish: ...html#t=<SOATO kodi yoki tartib raqami>
+  const hm = /t=(\d+)/.exec(location.hash);
+  if (hm) { const v = +hm[1], n = T.findIndex(t => t.code === v) + 1 || (v <= T.length ? v : 0); if (n) select(n, 'jump'); }
+  msg.style.display = 'none';
+  console.info(`Tayyor: ${Math.round(performance.now())} ms, ${nv} tugun, ${nc * 2} uchburchak`);
+  (function loop() {
+    requestAnimationFrame(loop);
+    if (!dirtyF) return; dirtyF = false;
+    renderer.render(scene, camera);
+    placeLabels(stage.clientWidth, stage.clientHeight);
+    placePin();
+  })();
+  window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY };
+})().catch(e => { const m = document.getElementById('msg'); m.textContent = 'Xato: ' + e.message; m.className = 'err'; console.error(e); });
+</script>
+</body>
+</html>
