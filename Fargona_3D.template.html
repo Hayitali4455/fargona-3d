@@ -118,6 +118,9 @@
   #rainLg { left: 16px; bottom: 44px; width: 280px; padding: 10px 14px 9px; display: none; }
   #rainLg .t { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
   #rainLg .seg { margin: 7px 0 8px; }
+  #rgRange { display: none; align-items: center; gap: 6px; margin: -2px 0 8px; font-size: 12px; color: var(--muted); }
+  #rgRange input { flex: 1; min-width: 0; background: #111926; color: var(--text); border: 1px solid var(--panel-line);
+    border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; }
   #rgRamp { height: 12px; border-radius: 3px; }
   #rgTicks { position: relative; height: 16px; margin-top: 2px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   #rgTicks span { position: absolute; top: 0; transform: translateX(-50%); }
@@ -271,7 +274,7 @@
     <div id="iRain">
       <h3>Yog‘ingarchilik <span id="rAsOf"></span></h3>
       <div class="rstats" id="rStats"></div>
-      <div class="seg" id="rTab"><button data-c="m" class="on">Oylar</button><button data-c="y">Yillar</button></div>
+      <div class="seg" id="rTab"><button data-c="m" class="on">Oylar</button><button data-c="y">Yillar</button><button data-c="r">Oraliq</button></div>
       <svg id="rChart" viewBox="0 0 242 128" role="img"></svg>
       <div class="rleg" id="rLeg"></div>
       <div id="rTip"></div>
@@ -290,8 +293,9 @@
   <div id="rainLg" class="card">
     <div class="t"><span>Yog‘ingarchilik, mm</span><span id="rgUpd"></span></div>
     <div class="seg" id="rgPer">
-      <button data-p="7">7 kun</button><button data-p="30" class="on">30 kun</button><button data-p="ytd">Joriy yil</button><button data-p="365">12 oy</button>
+      <button data-p="7">7 kun</button><button data-p="30" class="on">30 kun</button><button data-p="ytd">Joriy yil</button><button data-p="365">12 oy</button><button data-p="oraliq">Oraliq</button>
     </div>
+    <div id="rgRange"><input type="date" id="rgFrom" aria-label="Boshlanish sanasi"> – <input type="date" id="rgTo" aria-label="Tugash sanasi"></div>
     <div id="rgRamp"></div>
     <div id="rgTicks"></div>
     <div class="src" id="rgSrc"></div>
@@ -955,7 +959,7 @@ const D = /*__DATA__*/null;
     if (!h) { $('sZ').textContent = '—'; $('sT').textContent = '—'; $('sLL').textContent = '—'; return; }
     $('sZ').textContent = '≈ ' + fmt(elevFull(h.x, h.z)) + ' m';
     $('sT').textContent = T[h.id - 1].name;
-    if (st.rain && RAIN) $('sR').textContent = fmtMm(periodSum(series(T[h.id - 1].code), st.rainPer)) + ' mm (' + PER_TXT[st.rainPer] + ')';
+    if (st.rain && RAIN) $('sR').textContent = fmtMm(periodSum(series(T[h.id - 1].code), st.rainPer)) + ' mm (' + perTxt(st.rainPer) + ')';
     const ll = toLatLon(h.x + CX, CY - h.z);
     $('sLL').textContent = `${ll[0].toFixed(5)}° N, ${ll[1].toFixed(5)}° E`;
   }
@@ -1343,6 +1347,9 @@ const D = /*__DATA__*/null;
   const C_BAR = '#3987e5', C_REF = '#d95926', INK2 = '#c3c2b7', MUTED = '#898781', GRID = '#2c2c2a', BASE = '#383835';
   const OY = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
   const PER_TXT = { 7: 'oxirgi 7 kun', 30: 'oxirgi 30 kun', ytd: 'joriy yil', 365: 'oxirgi 12 oy' };
+  const perTxt = p => p === 'oraliq' ? `${fmtDate(RAIN.day(st.rFrom))} – ${fmtDate(RAIN.day(st.rTo))}` : PER_TXT[p];
+  const isoDay = i => RAIN.day(i).toISOString().slice(0, 10);
+  const dayIdx = iso => Math.round((Date.parse(iso + 'T00:00:00Z') - RAIN.t0) / 864e5);
   const fmtMm = v => isNaN(v) ? '—' : v.toLocaleString('ru-RU', { maximumFractionDigits: v < 100 ? 1 : 0 });
   const fmtDate = d => `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
   const niceCeil = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v - 1e-9) return m * p; return 10 * p; };
@@ -1367,6 +1374,7 @@ const D = /*__DATA__*/null;
   const series = code => code ? RAIN.byCode.get(code) : RAIN.reg;
   function sumDays(a, i0, i1) { let s = 0, c = 0; for (let i = Math.max(0, i0); i <= i1; i++) if (!isNaN(a[i])) { s += a[i]; c++; } return c ? s : NaN; }
   function periodSum(a, p) {
+    if (p === 'oraliq') return sumDays(a, st.rFrom, st.rTo);
     if (p === 'ytd') return sumDays(a, Math.round((Date.UTC(RAIN.ly, 0, 1) - RAIN.t0) / 864e5), RAIN.n - 1);
     return sumDays(a, RAIN.n - p, RAIN.n - 1);
   }
@@ -1382,7 +1390,7 @@ const D = /*__DATA__*/null;
     const nY = RAIN.fullTo - RAIN.y0 + 1, mMean = new Array(12).fill(0);
     for (let y = RAIN.y0; y <= RAIN.fullTo; y++) for (let m = 0; m < 12; m++) mMean[m] += (mon.get(y * 12 + m) || 0) / nY;
     let yMean = 0; for (let y = RAIN.y0; y <= RAIN.fullTo; y++) yMean += (yr.get(y) || 0) / nY;
-    const r = { mon, yr, mMean, yMean, nY }; RAIN.cache.set(code, r); return r;
+    const r = { a, mon, yr, mMean, yMean, nY }; RAIN.cache.set(code, r); return r;
   }
 
   // Xarita: tanlangan davr bo'yicha tumanlar rangi. Shkala 0 dan; agar eng kichik qiymat ham katta bo'lsa
@@ -1419,11 +1427,35 @@ const D = /*__DATA__*/null;
     $('rAsOf').textContent = 'oxirgi kun ' + fmtDate(RAIN.last);
     const tile = (lbl, v, sub) => `<div><small>${lbl}</small><b>${fmtMm(v)} <i>mm${sub ? ' · ' + sub : ''}</i></b></div>`;
     const ytd = periodSum(a, 'ytd');
+    if (st.rainPer === 'oraliq') {
+      const R = rangeStats(a);
+      $('rStats').innerHTML = `<div style="grid-column:1/-1"><small>Oraliq: ${perTxt('oraliq')} (${st.rTo - st.rFrom + 1} kun)</small><b>${fmtMm(R.sum)} <i>mm${R.norm != null ? ` · ko‘p yillik o‘rtacha ${fmtMm(R.norm)} mm` : ''}</i></b></div>` +
+        `<div><small>Eng ko‘p kunlik</small><b>${fmtMm(R.max)} <i>mm${R.maxDay != null ? ' · ' + fmtDate(RAIN.day(R.maxDay)) : ''}</i></b></div>` +
+        `<div><small>Yog‘inli kunlar (≥ 1 mm)</small><b>${R.wet} <i>kun</i></b></div>`;
+    } else
     $('rStats').innerHTML = tile('Oxirgi 7 kun', periodSum(a, 7)) + tile('Oxirgi 30 kun', periodSum(a, 30)) +
       tile(`${RAIN.ly}-yil (hozirgacha)`, ytd) + tile(`O‘rtacha yillik (${RAIN.y0}–${RAIN.fullTo})`, G.yMean);
     drawChart(G);
   }
 
+  // Oraliq ko'rsatkichlari: jami, eng ko'p kunlik, yog'inli kunlar; oraliq <= 1 yil bo'lsa — to'liq yillardagi
+  // xuddi shu kalendar oynasining o'rtachasi (me'yor)
+  function rangeStats(a) {
+    let sum = 0, max = -1, maxDay = null, wet = 0;
+    for (let i = st.rFrom; i <= st.rTo; i++) { const v = a[i]; if (isNaN(v)) continue; sum += v; if (v > max) { max = v; maxDay = i; } if (v >= 1) wet++; }
+    let norm = null;
+    if (st.rTo - st.rFrom < 366) {
+      const d0 = RAIN.day(st.rFrom), d1 = RAIN.day(st.rTo), y0 = d0.getUTCFullYear(); let s2 = 0, c = 0;
+      for (let y = RAIN.y0; y <= RAIN.fullTo; y++) {
+        const a0 = Date.UTC(y, d0.getUTCMonth(), d0.getUTCDate()), a1 = Date.UTC(y + (d1.getUTCFullYear() - y0), d1.getUTCMonth(), d1.getUTCDate());
+        const i0 = Math.round((a0 - RAIN.t0) / 864e5), i1 = Math.round((a1 - RAIN.t0) / 864e5);
+        if (i0 < 0 || i1 > RAIN.n - 1) continue;
+        s2 += sumDays(a, i0, i1) || 0; c++;
+      }
+      if (c) norm = s2 / c;
+    }
+    return { sum, max: Math.max(0, max), maxDay, wet, norm };
+  }
   // Ustunli grafik: ustun — qiymat, ref — ko'p yillik o'rtacha (oylarda har ustunda belgi, yillarda bitta chiziq)
   function drawChart(G) {
     const svg = $('rChart'), W = Math.round(svg.getBoundingClientRect().width) || 242, H = 128, L = 30, R = 4, Tp = 8, B = 18;
@@ -1439,6 +1471,22 @@ const D = /*__DATA__*/null;
       title = 'Oylik yog‘in: oxirgi 12 oy va ko‘p yillik o‘rtacha';
       $('rLeg').innerHTML = `<span><i style="width:10px;height:10px;border-radius:2px;background:${C_BAR}"></i>Oxirgi 12 oy</span>` +
         `<span><i style="width:14px;height:2px;background:${C_REF}"></i>O‘rtacha (${RAIN.y0}–${RAIN.fullTo})</span>`;
+    } else if (st.chart === 'r') {
+      // oraliq: 120 kungacha kunlik, 5 yilgacha oylik, undan uzun — yillik ustunlar
+      const a = G.a, nd = st.rTo - st.rFrom + 1; items = [];
+      if (nd <= 120) {
+        for (let i = st.rFrom; i <= st.rTo; i++) { const d = RAIN.day(i); items.push({ lab: d.getUTCDate() === 1 || i === st.rFrom ? OY[d.getUTCMonth()] : String(d.getUTCDate()), full: fmtDate(d), v: isNaN(a[i]) ? 0 : a[i] }); }
+        title = 'Kunlik yog‘in, tanlangan oraliq';
+      } else {
+        const byYear = nd > 5 * 366, map = new Map();
+        for (let i = st.rFrom; i <= st.rTo; i++) {
+          const d = RAIN.day(i), key = byYear ? d.getUTCFullYear() : d.getUTCFullYear() * 12 + d.getUTCMonth();
+          map.set(key, (map.get(key) || 0) + (isNaN(a[i]) ? 0 : a[i]));
+        }
+        map.forEach((v, key) => items.push(byYear ? { lab: String(key).slice(2), full: String(key), v } : { lab: OY[key % 12], full: `${OY[key % 12]} ${Math.floor(key / 12)}`, v }));
+        title = byYear ? 'Yillik yog‘in, tanlangan oraliq' : 'Oylik yog‘in, tanlangan oraliq';
+      }
+      $('rLeg').innerHTML = `<span>${perTxt('oraliq')} · ${nd <= 120 ? 'kunlik' : nd > 5 * 366 ? 'yillik' : 'oylik'}</span>`;
     } else {
       items = [];
       for (let y = RAIN.y0; y <= RAIN.ly; y++) {
@@ -1459,13 +1507,14 @@ const D = /*__DATA__*/null;
       const x = L + i * (bw + gap), y = yv(it.v), h = H - B - y, r = Math.min(4, bw / 2, h);
       if (h > 0.3) o += `<path d="M${x} ${H - B}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + bw - r}Q${x + bw} ${y} ${x + bw} ${y + r}V${H - B}Z" fill="${C_BAR}"${it.part ? ' fill-opacity="0.45"' : ''}/>`;
       if (it.ref != null) o += `<line x1="${x}" x2="${x + bw}" y1="${yv(it.ref)}" y2="${yv(it.ref)}" stroke="${C_REF}" stroke-width="2" stroke-linecap="round"/>`;
-      if (k <= 12 ? i % 2 === (k - 1) % 2 : true) o += `<text x="${x + bw / 2}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${MUTED}">${it.lab}</text>`;
+      const every = Math.ceil(k / 12);  // ko'p ustunda har n-chisiga yorliq
+      if (k <= 12 ? i % 2 === (k - 1) % 2 : (k - 1 - i) % every === 0) o += `<text x="${x + bw / 2}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${MUTED}">${it.lab}</text>`;
       o += `<rect class="hit" data-i="${i}" x="${x - gap / 2}" y="${Tp}" width="${bw + gap}" height="${H - Tp - B}"/>`;
     });
     if (refLine != null) o += `<line x1="${L}" x2="${W - R}" y1="${yv(refLine)}" y2="${yv(refLine)}" stroke="${C_REF}" stroke-width="2" stroke-dasharray="5 3"/>`;
     svg.innerHTML = o;
     svg._items = items;
-    $('rTable').innerHTML = `<tr><td>${st.chart === 'm' ? 'Oy' : 'Yil'}</td><td>mm</td>${st.chart === 'm' ? '<td>o‘rtacha</td>' : ''}</tr>` +
+    $('rTable').innerHTML = `<tr><td>${st.chart === 'm' ? 'Oy' : st.chart === 'r' ? 'Davr' : 'Yil'}</td><td>mm</td>${st.chart === 'm' ? '<td>o‘rtacha</td>' : ''}</tr>` +
       items.map(it => `<tr><td>${it.full}</td><td>${fmtMm(it.v)}</td>${it.ref != null ? `<td>${fmtMm(it.ref)}</td>` : ''}</tr>`).join('');
   }
   // grafik ustida kursor/barmoq: ustun ma'lumoti
@@ -1488,9 +1537,20 @@ const D = /*__DATA__*/null;
   });
   $('rgPer').addEventListener('click', e => {
     const p = e.target.dataset && e.target.dataset.p; if (!p) return;
-    st.rainPer = p === 'ytd' ? 'ytd' : +p; [...$('rgPer').children].forEach(b => b.classList.toggle('on', b.dataset.p === p));
-    paintRain();
+    st.rainPer = p === 'ytd' || p === 'oraliq' ? p : +p; [...$('rgPer').children].forEach(b => b.classList.toggle('on', b.dataset.p === p));
+    $('rgRange').style.display = p === 'oraliq' ? 'flex' : 'none';
+    if (p === 'oraliq' && st.chart !== 'r') { st.chart = 'r'; [...$('rTab').children].forEach(b => b.classList.toggle('on', b.dataset.c === 'r')); }
+    paintRain(); if ($('info').style.display === 'block') renderRain(st.sel);
   });
+
+  function onRange() {
+    let a = dayIdx($('rgFrom').value), b = dayIdx($('rgTo').value);
+    if (isNaN(a) || isNaN(b)) return;
+    a = Math.max(0, Math.min(RAIN.n - 1, a)); b = Math.max(0, Math.min(RAIN.n - 1, b)); if (a > b) [a, b] = [b, a];
+    st.rFrom = a; st.rTo = b; $('rgFrom').value = isoDay(a); $('rgTo').value = isoDay(b);
+    paintRain(); if ($('info').style.display === 'block') renderRain(st.sel);
+  }
+  $('rgFrom').addEventListener('change', onRange); $('rgTo').addEventListener('change', onRange);
 
   // Mavzuli qatlam: relyef | yogin | tuproq | qoplam (bir vaqtda bittasi)
   st.theme = 'relyef';
@@ -1520,6 +1580,9 @@ const D = /*__DATA__*/null;
     if (!got.length) { rb.title = 'Yog‘in ma’lumoti faqat sayt orqali ochilganda yuklanadi'; return; }
     got.sort((x, y) => (y.oxiri + y.yangilandi).localeCompare(x.oxiri + x.yangilandi));
     RAIN = prepRain(got[0]);
+    st.rFrom = RAIN.n - 30; st.rTo = RAIN.n - 1;  // oraliq boshida: oxirgi 30 kun
+    for (const el of [$('rgFrom'), $('rgTo')]) { el.min = isoDay(0); el.max = isoDay(RAIN.n - 1); }
+    $('rgFrom').value = isoDay(st.rFrom); $('rgTo').value = isoDay(st.rTo);
     const J = RAIN.J, upd = new Date(J.yangilandi);
     $('rgUpd').textContent = 'yangilangan ' + fmtDate(new Date(Date.UTC(upd.getUTCFullYear(), upd.getUTCMonth(), upd.getUTCDate())));
     $('rgSrc').textContent = `${fmtDate(RAIN.day(0))} – ${fmtDate(RAIN.last)}, har tuman uchun bitta nuqta. Manba: Open-Meteo.com (ECMWF IFS, 9 km), CC BY 4.0. ` +
