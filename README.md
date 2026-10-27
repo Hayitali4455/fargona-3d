@@ -53,7 +53,8 @@ Copernicus GLO-30: © DLR e.V. 2010–2014 va © Airbus Defence and Space GmbH 2
 Manba ma’lumotlar (repoda yo‘q): ``Farg`ona.tif`` (DEM, EPSG:3857, 4 m) va `tuman.shp`.
 
 ```
-python build.py --no-tiles   # index.html — 50 m relyef to‘ri, chegaralar, nomlar
+python build.py --ochiq     # index.html (sayt): 50 m relyef to‘ri, chegaralar, nomlar; 4 m bo‘laklar va lokal qatlamlarsiz
+python build.py --out lokal.html   # lokal to‘liq nusxa (4 m bo‘laklar, lokal qatlamlar), repoga qo‘yilmaydi
 
 # suv oqimi (hydro/, repoga qo‘yilmagan): DEM tayyorlash, ArcGIS hisobi, chiziqlarni boyitish
 python hydro_prep.py && python hydro_prep_ext.py
