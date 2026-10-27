@@ -25,6 +25,64 @@ SHP = r"D:\Farg`ona\tuman.shp"
 NEAR_M = 150  # OSM daryosi modeldagi oqimga shu masofada bo'lsa "mos" deb olinadi
 
 
+D8 = {1: (1, 0), 2: (1, -1), 4: (0, -1), 8: (-1, -1), 16: (-1, 0), 32: (-1, 1), 64: (0, 1), 128: (1, 1)}
+
+
+def orient_and_route(raw, fdir_path):
+    """Chiziqlarni oqim bo'yicha (yuqoridan pastga) yo'naltirish va har chiziq oxiridan
+    tarmoq chiqishigacha bo'lgan masofani (quyi_end, m) hisoblash.
+
+    Yo'nalish D8 oqim yo'nalishi rasteridan: chiziq ichidagi nuqtalarda katakdagi oqim
+    vektori chiziq urinmasi bilan solishtiriladi, ko'pchilik ovoz bilan.
+    """
+    with rasterio.open(fdir_path) as r:
+        fd, inv = r.read(1), ~r.transform
+    vx = np.zeros(256); vy = np.zeros(256)
+    for code, (dx, dy) in D8.items():
+        vx[code], vy[code] = dx, dy
+    geoms = list(raw.geometry.values)
+    flipped = 0
+    for i, g in enumerate(geoms):
+        L = g.length
+        d = np.linspace(0.15, 0.85, 7) * L
+        p = shapely.line_interpolate_point(g, d)
+        q = shapely.line_interpolate_point(g, np.minimum(d + 5, L))
+        tx, ty = shapely.get_x(q) - shapely.get_x(p), shapely.get_y(q) - shapely.get_y(p)
+        c, rr = inv * (shapely.get_x(p), shapely.get_y(p))
+        code = fd[np.clip(np.floor(rr).astype(int), 0, fd.shape[0] - 1), np.clip(np.floor(c).astype(int), 0, fd.shape[1] - 1)]
+        code = np.clip(code, 0, 255).astype(int)
+        if np.sign(vx[code] * tx + vy[code] * ty).sum() < 0:
+            geoms[i] = g.reverse()
+            flipped += 1
+    raw = raw.set_geometry(gpd.GeoSeries(geoms, index=raw.index, crs=raw.crs))
+    print(f"teskari yo'nalgan chiziqlar tuzatildi: {flipped} / {len(raw)}")
+
+    # tutashuv: chiziq oxiri = keyingi (quyi) chiziq boshi
+    key = lambda pt: (round(pt.x), round(pt.y))
+    start = {}
+    for i, g in enumerate(geoms):
+        start.setdefault(key(shapely.get_point(g, 0)), []).append(i)
+    nxt = [-1] * len(geoms)
+    for i, g in enumerate(geoms):
+        cand = [j for j in start.get(key(shapely.get_point(g, -1)), []) if j != i]
+        if cand:
+            nxt[i] = cand[0]
+    lens = [g.length for g in geoms]
+    dist = [None] * len(geoms)
+    for i in range(len(geoms)):
+        path, j = [], i
+        while j >= 0 and dist[j] is None and len(path) < len(geoms):
+            path.append(j)
+            j = nxt[j]
+        acc_d = 0.0 if j < 0 or dist[j] is None else dist[j] + lens[j]
+        for k in reversed(path):  # dist[k] = k oxiridan chiqishgacha
+            dist[k] = acc_d
+            acc_d += lens[k]
+    raw["quyi_end"] = dist
+    print(f"tutashuvlar: {sum(n >= 0 for n in nxt)} ta, eng uzun yo'l {max(d + l for d, l in zip(dist, lens)) / 1e3:.0f} km")
+    return raw
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", default="ext", help="hydro_arc.py natijasi qo'shimchasi")
@@ -34,6 +92,7 @@ def main():
         acc, tr, crs = r.read(1, masked=True).filled(0), r.transform, r.crs
         cell = r.res[0]
     raw = gpd.read_file(os.path.join(H, f"oqim_raw_{tag}.shp")).set_crs(crs, allow_override=True)
+    raw = orient_and_route(raw, os.path.join(H, f"fdir_{tag}.tif"))
 
     # faqat viloyat ichidagi qismlar (kengaytirilgan DEM da tashqaridagi tarmoq ham bor)
     tum = gpd.read_file(SHP).to_crs(crs)[["district", "geometry"]]
@@ -41,7 +100,12 @@ def main():
     region = tum.geometry.union_all()
     s = raw.clip(region).explode(index_parts=False)
     s = s[s.geom_type == "LineString"]
-    s = s[s.length >= 20].reset_index(drop=True)
+    s = s[s.length >= 20]
+    # bo'lak oxiridan quyilish joyigacha = xom chiziq oxiridan + xom chiziqning bo'lak oxiridan keyingi qismi
+    rg = raw.geometry.loc[s.index].values
+    end = shapely.get_point(s.geometry.values, -1)
+    s["quyi_m"] = raw["quyi_end"].loc[s.index].values + shapely.length(rg) - shapely.line_locate_point(rg, end)
+    s = s.reset_index(drop=True)
 
     # Havza: chiziq bo'ylab (har 10 m) eng katta yig'ilish. Ikkala uchidan 30 m olinmaydi: chiziq
     # qo'shilish katagida tugaydi va u yerdagi yig'ilish quyiladigan daryoniki (yo'nalishdan qat'i nazar).
@@ -71,6 +135,7 @@ def main():
         "uzunlik_m": np.round(s.length, 1),
         "tuman": j["district"].fillna(""),
         "manba": src,
+        "quyi_m": np.round(s["quyi_m"].values, 1),
     }, geometry=s.geometry, crs=crs)
     out.to_file(os.path.join(H, "suv_oqimi.gpkg"), driver="GPKG")
     out.to_crs(3857).to_file(os.path.join(H, "suv_oqimi_3857.shp"), encoding="utf-8")

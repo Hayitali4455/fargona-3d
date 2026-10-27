@@ -7,7 +7,7 @@ Farg‘ona viloyati relyefi (DEM) va 19 ta tuman/shahar chegarasini ko‘rsatadi
 - Past joylar yashil, baland joylar qizil rangda (346–2417 m).
 - Tuman nomlari doim ko‘rinib turadi. Tumanni bosganda uning maydoni va balandlik ko‘rsatkichlari chiqadi.
 - Istalgan nuqtani bosganda o‘sha joyning balandligi ko‘rsatiladi (DEM 50 m to‘ridan; vodiyda xato odatda 1 m dan kam, tog‘larda bir necha metr).
-- **Suv oqimi yo‘llari**: relyef bo‘yicha suv oqishi mumkin bo‘lgan yo‘llar (ko‘k chiziqlar, qalinligi Strahler tartibiga qarab). Polzunok bilan ko‘rsatiladigan eng kichik havza maydoni tanlanadi (1–500 km², boshlang‘ich 25 km²). Oqim ustiga bosilsa, uning tartibi va havza maydoni chiqadi.
+- **Suv oqimi yo‘llari**: relyef bo‘yicha suv oqishi mumkin bo‘lgan yo‘llar suv ko‘rinishida chiziladi: kengligi havza maydoniga bog‘liq (taxminan 2.5·√havza m, 4–180 m), to‘lqinlar oqim yo‘nalishida harakatlanadi (“Oqim animatsiyasi” bilan o‘chiriladi). Polzunok bilan ko‘rsatiladigan eng kichik havza maydoni tanlanadi (1–500 km², boshlang‘ich 25 km²). Oqim ustiga bosilsa, uning tartibi va havza maydoni chiqadi.
 - Bitta tumanni ochadigan havola: `…/fargona-3d/#t=<SOATO kodi>`, masalan `#t=1730226` (So‘x tumani).
 
 ## Boshqaruv

@@ -169,15 +169,28 @@ def main():
         so = gpd.read_file(gp).to_crs(tm)
         if "manba" in so:  # portalda DEM yo'q joy (Shohimardon) teshik, u yerdagi GLO-30 chiziqlari chizilmaydi
             so = so[so["manba"] != "GLO-30"]
+        so = so.sort_values("maydon_km2", kind="stable")  # kichiklari avval: katta daryo irmoqlar ustidan chiziladi
         cnt, xy = [], []
         for ln in so.geometry:
-            c = np.round(np.asarray(shapely.segmentize(ln, 50).coords)[:, :2]).astype(np.int64)
+            # D8 zinapoyasini yo'qotish: soddalashtirish + Chaikin silliqlash (uchlari joyida, tutashuvlar saqlanadi)
+            c = np.asarray(ln.simplify(10).coords)[:, :2]
+            for _ in range(3):
+                if len(c) < 3:
+                    break
+                p0, p1 = c[:-1], c[1:]
+                mid = np.empty((2 * len(p0), 2))
+                mid[0::2], mid[1::2] = 0.75 * p0 + 0.25 * p1, 0.25 * p0 + 0.75 * p1
+                c = np.vstack([c[:1], mid, c[-1:]])
+            sm = shapely.LineString(c).simplify(1.5)
+            c = np.round(np.asarray(shapely.segmentize(sm, 50).coords)[:, :2]).astype(np.int64)
             cnt.append(len(c))
             xy.append(c)
         xy = np.concatenate(xy)
         d32 = np.diff(xy, axis=0, prepend=np.zeros((1, 2), np.int64)).ravel()  # x va y alohida delta
         assert np.abs(d32).max() < 2**31
+        # q: chiziq oxiridan tarmoq chiqishigacha masofa (m) — animatsiya fazasi tutashuvlarda uzilmasin
         oqim = {"n": cnt, "o": so["tartib"].astype(int).tolist(), "a": np.round(so["maydon_km2"], 2).tolist(),
+                "q": np.round(so["quyi_m"], 1).tolist(), "u": np.round(so["uzunlik_m"], 1).tolist(),
                 "xy": b64gz(d32.astype("<i4"))}
         print(f"suv oqimi: {len(so)} chiziq, {len(xy)} nuqta")
 

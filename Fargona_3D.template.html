@@ -83,7 +83,7 @@
   #legend { left: 16px; bottom: 44px; width: 280px; padding: 10px 14px 8px; }
   #legend .oq { display: none; align-items: center; gap: 8px; margin-top: 6px; padding-top: 7px;
     border-top: 1px solid var(--panel-line); font-size: 11.5px; color: var(--muted); }
-  #legend .oq i { flex: none; width: 26px; height: 4px; border-radius: 2px; background: #48c0ff; box-shadow: 0 0 0 1px #04182e; }
+  #legend .oq i { flex: none; width: 26px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, #40a8cc, #0d4d94); }
   .row > label.t span { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
   .row > label.t span input { accent-color: var(--accent); margin: 0; }
   #oqRow { display: none; }
@@ -163,6 +163,7 @@
     <div class="row" id="oqRow">
       <label class="t" for="oqMin"><span><input type="checkbox" id="showOq" checked> Suv oqimi yo‘llari</span><b id="oqv">havza ≥ 25 km²</b></label>
       <input id="oqMin" type="range" min="0" max="8" step="1" value="4" aria-label="Ko‘rsatiladigan eng kichik havza maydoni">
+      <div class="chk" style="margin-top:8px"><label><input type="checkbox" id="showAnim" checked> Oqim animatsiyasi</label></div>
     </div>
     <div class="row chk">
       <label><input type="checkbox" id="showLbl" checked> Tuman nomlari</label>
@@ -193,7 +194,7 @@
     <div class="t"><span>Balandlik, m</span><span id="lgMode">muvozanatli</span></div>
     <div id="ramp"></div>
     <div id="ticks"></div>
-    <div class="oq" id="lgOq"><i></i><span>Suv oqimi yo‘li (DEM bo‘yicha), qalinligi — Strahler tartibi. Viloyat tashqarisidagi havza: Copernicus GLO-30 © DLR e.V., © Airbus DS, ESA</span></div>
+    <div class="oq" id="lgOq"><i></i><span>Suv oqimi yo‘li (DEM bo‘yicha): kengligi havza maydoniga bog‘liq, to‘lqinlar oqim yo‘nalishida harakatlanadi. Viloyat tashqarisidagi havza: Copernicus GLO-30 © DLR e.V., © Airbus DS, ESA</span></div>
   </div>
 
   <button id="compass" class="card" title="Shimolga burish">
@@ -458,62 +459,109 @@ const D = /*__DATA__*/null;
   bnd.add(fatLines(D.outer, 1.5, 0xffffff, 1.0, 4, 2));
 
   /* ---------- Suv oqimi yo'llari (ArcGIS Derive Continuous Flow, D8; hydro_*.py) ---------- */
-  // Har chiziq: nuqtalar soni n, Strahler tartibi o, yuqoridagi havza a (km2, faqat viloyat ichidan)
-  const OQ_STEPS = [1, 2, 5, 10, 25, 50, 100, 250, 500], uMinA = { value: 25 };
+  // Har chiziq (oqim bo'yicha yo'naltirilgan): nuqtalar soni n, Strahler tartibi o, yuqoridagi havza a (km2),
+  // q — chiziq oxiridan tarmoq chiqishigacha masofa (m), u — chiziqning asl (silliqlanmagan) uzunligi.
+  // Chiziqlar havza bo'yicha o'sib boradi (kattasi oxirida chiziladi).
+  const OQ_STEPS = [1, 2, 5, 10, 25, 50, 100, 250, 500], uMinA = { value: 25 }, uT = { value: 0 };
   const OQ = D.oqim ? await (async () => {
     const raw = await unpack(D.oqim.xy), d = new Int32Array(raw.buffer, 0, raw.length / 4), xy = new Float64Array(d.length);
     for (let i = 0, ax = 0, ay = 0; i < d.length; i += 2) { ax += d[i]; ay += d[i + 1]; xy[i] = ax; xy[i + 1] = ay; }
-    return { n: D.oqim.n, o: D.oqim.o, a: D.oqim.a, xy };
+    return { n: D.oqim.n, o: D.oqim.o, a: D.oqim.a, q: D.oqim.q, u: D.oqim.u, xy };
   })() : null;
   const oqG = new THREE.Group(); world.add(oqG);
   if (OQ) {
-    let nseg = 0; OQ.n.forEach(c => { nseg += c - 1; });
-    const p = new Float32Array(nseg * 12), o = new Float32Array(nseg * 12), s = new Float32Array(nseg * 4),
-      aa = new Float32Array(nseg * 4), ao = new Float32Array(nseg * 4), ix = new Uint32Array(nseg * 6);
-    for (let li = 0, k = 0, q = 0; li < OQ.n.length; li++) {
-      let px = 0, py = 0, pz = 0;
-      for (let m = 0; m < OQ.n[li]; m++, k += 2) {
-        const x = toX(OQ.xy[k]), z = toZ(OQ.xy[k + 1]), y = heightAt(x, z) - ZB + 3;
-        if (m) {
-          p.set([px, py, pz, px, py, pz, x, y, z, x, y, z], q * 12); o.set([x, y, z, x, y, z, px, py, pz, px, py, pz], q * 12);
-          s.set([1, -1, -1, 1], q * 4); aa.fill(OQ.a[li], q * 4, q * 4 + 4); ao.fill(OQ.o[li], q * 4, q * 4 + 4);
-          const b = q * 4; ix.set([b, b + 1, b + 3, b, b + 3, b + 2], q * 6); q++;
+    // Suv tasmasi: har nuqtada ikki tugun (chap/o'ng), burilishda miter normal; aD — shu nuqtadan chiqishgacha masofa
+    let np = 0; OQ.n.forEach(c => { np += c; });
+    const P = new Float32Array(np * 6), N = new Float32Array(np * 4), S = new Float32Array(np * 2),
+      AD = new Float32Array(np * 2), AA = new Float32Array(np * 2), AO = new Float32Array(np * 2), I = new Uint32Array((np - OQ.n.length) * 6);
+    for (let li = 0, k = 0, v = 0, ii = 0; li < OQ.n.length; li++) {
+      const n = OQ.n[li], xs = new Float64Array(n), zs = new Float64Array(n), L = new Float64Array(n);
+      for (let m = 0; m < n; m++, k += 2) {
+        xs[m] = toX(OQ.xy[k]); zs[m] = toZ(OQ.xy[k + 1]);
+        if (m) L[m] = L[m - 1] + Math.hypot(xs[m] - xs[m - 1], zs[m] - zs[m - 1]);
+      }
+      const nrm = (a, b) => { const dx = xs[b] - xs[a], dz = zs[b] - zs[a], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l]; };
+      for (let m = 0; m < n; m++) {
+        const n1 = m > 0 ? nrm(m - 1, m) : null, n2 = m < n - 1 ? nrm(m, m + 1) : null;
+        let nx, nz;
+        if (n1 && n2) {
+          nx = n1[0] + n2[0]; nz = n1[1] + n2[1];
+          const l = Math.hypot(nx, nz) || 1, c = Math.max(0.5, (nx * n1[0] + nz * n1[1]) / l);
+          nx /= l * c; nz /= l * c;
+        } else { [nx, nz] = n1 || n2; }
+        // har chet balandligi: o'q va shu chetdagi relyefning balandrog'i (aks holda qirg'oq suv ichidan bo'rtib chiqadi)
+        const yc = heightAt(xs[m], zs[m]) - ZB, hw = 0.5 * Math.min(180, Math.max(4, 2.5 * Math.sqrt(OQ.a[li])));
+        const dd = OQ.q[li] + OQ.u[li] * (1 - L[m] / (L[n - 1] || 1));
+        for (let sd = -1; sd <= 1; sd += 2, v++) {
+          const y = Math.max(yc, heightAt(xs[m] + nx * sd * hw, zs[m] + nz * sd * hw) - ZB) + 2;
+          P[v * 3] = xs[m]; P[v * 3 + 1] = y; P[v * 3 + 2] = zs[m]; N[v * 2] = nx; N[v * 2 + 1] = nz;
+          S[v] = sd; AD[v] = dd; AA[v] = OQ.a[li]; AO[v] = OQ.o[li];
         }
-        px = x; py = y; pz = z;
+        if (m) { const b = v - 4; I.set([b, b + 1, b + 3, b, b + 3, b + 2], ii); ii += 6; }
       }
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-    g.setAttribute('other', new THREE.BufferAttribute(o, 3));
-    g.setAttribute('side', new THREE.BufferAttribute(s, 1));
-    g.setAttribute('aA', new THREE.BufferAttribute(aa, 1));
-    g.setAttribute('aO', new THREE.BufferAttribute(ao, 1));
-    g.setIndex(new THREE.BufferAttribute(ix, 1));
-    // Qalinlik (yarim kenglik, px) = w0 + w1 * tartib; havzasi uMinA dan kichik chiziqlar ekrandan tashqariga chiqariladi
-    const oqMat = (w0, w1, color, alpha, ord) => {
-      const m = new THREE.ShaderMaterial({
-        uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: 1 }, uW0: { value: w0 }, uW1: { value: w1 }, uMin: uMinA,
-          uC: { value: new THREE.Color(color) }, uA: { value: alpha } },
-        vertexShader: `attribute vec3 other; attribute float side; attribute float aA; attribute float aO;
-          uniform vec2 uRes; uniform float uW; uniform float uW0; uniform float uW1; uniform float uMin;
-          void main() {
-            if (aA < uMin) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-            mat4 m = projectionMatrix * modelViewMatrix;
-            vec4 a = m * vec4(position, 1.0), b = m * vec4(other, 1.0);
-            vec2 sa = a.xy / a.w * uRes, sb = b.xy / b.w * uRes, d = sb - sa;
-            vec2 n = length(d) > 1e-6 ? normalize(vec2(-d.y, d.x)) : vec2(0.0);
-            a.xy += n * side * (uW0 + uW1 * aO) * uW / uRes * a.w;
-            a.z -= 0.0005 * a.w;
-            gl_Position = a;
-          }`,
-        fragmentShader: `uniform vec3 uC; uniform float uA; void main() { gl_FragColor = vec4(uC, uA); }`,
-        transparent: alpha < 1, depthWrite: false, side: THREE.DoubleSide
-      });
-      lineMats.push(m);
-      const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; mesh.renderOrder = ord; return mesh;
-    };
-    oqG.add(oqMat(1.15, 0.32, 0x0a2440, 1.0, 3));
-    oqG.add(oqMat(0.5, 0.32, 0x5cc8ff, 1.0, 4));
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+    g.setAttribute('aN', new THREE.BufferAttribute(N, 2));
+    g.setAttribute('side', new THREE.BufferAttribute(S, 1));
+    g.setAttribute('aD', new THREE.BufferAttribute(AD, 1));
+    g.setAttribute('aA', new THREE.BufferAttribute(AA, 1));
+    g.setAttribute('aO', new THREE.BufferAttribute(AO, 1));
+    g.setIndex(new THREE.BufferAttribute(I, 1));
+    const wm = new THREE.ShaderMaterial({
+      uniforms: { uRes: { value: new THREE.Vector2(1, 1) }, uW: { value: 1 }, uMin: uMinA, uT },
+      // Kenglik (m) ~ 2.5*sqrt(havza km2), 4..180 m; uzoqdan qaraganda tartibga qarab kamida (0.6+0.25*tartib) px yarim kenglik
+      vertexShader: `attribute vec2 aN; attribute float side; attribute float aD; attribute float aA; attribute float aO;
+        uniform vec2 uRes; uniform float uW; uniform float uMin;
+        varying float vD; varying float vT; varying float vMpp; varying float vSize;
+        void main() {
+          if (aA < uMin) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+          mat4 m = projectionMatrix * modelViewMatrix;
+          vec4 c = m * vec4(position, 1.0);
+          float ppm = projectionMatrix[1][1] * uRes.y / max(c.w, 1.0);
+          float hw = max(0.5 * clamp(2.5 * sqrt(aA), 4.0, 180.0), (0.6 + 0.25 * aO) * uW / ppm);
+          vec4 p = m * vec4(position + vec3(aN.x, 0.0, aN.y) * side * hw, 1.0);
+          p.z -= 0.0006 * p.w;
+          gl_Position = p;
+          vD = aD; vT = side; vMpp = 1.0 / ppm; vSize = clamp(log(aA) / log(3000.0), 0.0, 1.0);
+        }`,
+      // To'lqinlar oqim bo'ylab pastga suriladi: faza = -masofa/to'lqin uzunligi - vaqt. To'lqin uzunligi ekranda ~26 px,
+      // ikki oktava (L va 2L, L = 2^n m) aralashadi, shuning uchun yaqinlashganda naqsh sakramaydi.
+      fragmentShader: `uniform float uT;
+        varying float vD; varying float vT; varying float vMpp; varying float vSize;
+        // butun panjara nuqtalari uchun mod 289 permutatsion hash: faza o'n minglab davrga yetganda ham float32 da aniq
+        float h21(vec2 i) {
+          i = mod(i, 289.0);
+          float n = mod((i.x * 34.0 + 1.0) * i.x, 289.0) + i.y;
+          n = mod((n * 34.0 + 1.0) * n, 289.0);
+          return fract(n * 0.0243902439);
+        }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
+        float ripples(float s, float t) {
+          float ph = s + 0.35 * t * t;                   // o'rtada suv tezroq: to'lqin cho'qqisi oldinda
+          float n = vnoise(vec2(ph * 1.7, t * 3.5 + 7.0));
+          float w = 0.5 + 0.5 * cos(6.2831853 * (ph + 0.6 * n));
+          return w * w * w * (0.5 + 0.5 * n);
+        }
+        void main() {
+          float e = abs(vT);
+          float lg = log2(max(vMpp * 26.0, 0.5)), f = fract(lg), L0 = exp2(floor(lg));
+          float w = mix(ripples(-vD / L0 - uT, vT), ripples(-vD / (2.0 * L0) - uT, vT), f);
+          vec3 col = mix(vec3(0.34, 0.71, 0.79), vec3(0.07, 0.34, 0.53), vSize);
+          col = mix(col, col * 0.72 + vec3(0.05, 0.06, 0.03), smoothstep(0.45, 0.95, e) * 0.6);  // qirg'oq yonida sayoz, loyqaroq
+          col += vec3(0.16, 0.22, 0.25) * w * (1.0 - 0.8 * e);
+          // quyosh yaltirashlari: mayda shovqin oqim bilan birga suriladi
+          float sp = vnoise(vec2((-vD / L0 - uT) * 5.0, vT * 4.0 + 3.0));
+          col += vec3(0.95, 0.98, 1.0) * (smoothstep(0.80, 0.97, sp) * 0.55 + pow(w, 4.0) * 0.3) * (1.0 - e);
+          gl_FragColor = vec4(col, (1.0 - smoothstep(0.72, 1.0, e)) * 0.96);
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide
+    });
+    lineMats.push(wm);
+    const water = new THREE.Mesh(g, wm); water.frustumCulled = false; water.renderOrder = 3; oqG.add(water);
   }
   // Bosilgan nuqtaga eng yaqin ko'rinib turgan oqim (tol m gacha): 500 m katakli indeks
   let oqIdx = null;
@@ -896,7 +944,11 @@ const D = /*__DATA__*/null;
     $('oqRow').style.display = 'block'; $('lgOq').style.display = 'flex';
     const setMin = () => { uMinA.value = OQ_STEPS[+$('oqMin').value]; $('oqv').textContent = `havza ≥ ${uMinA.value} km²`; dirty(); };
     $('oqMin').addEventListener('input', setMin); setMin();
-    $('showOq').addEventListener('change', e => { oqG.visible = e.target.checked; $('oqMin').disabled = !e.target.checked; dirty(); });
+    $('showOq').addEventListener('change', e => { oqG.visible = e.target.checked; $('oqMin').disabled = !e.target.checked; $('showAnim').disabled = !e.target.checked; dirty(); });
+    // harakatni kamaytirish so'ralgan qurilmada animatsiya boshida o'chiq
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) $('showAnim').checked = false;
+    st.anim = $('showAnim').checked;
+    $('showAnim').addEventListener('change', e => { st.anim = e.target.checked; dirty(); });
   }
   $('vAll').addEventListener('click', () => {
     const t0 = cam.t.clone(), r0 = cam.r, p0 = cam.ph, th0 = cam.th;
@@ -922,13 +974,17 @@ const D = /*__DATA__*/null;
   // oqim indeksini birinchi bosishdan oldin, bo'sh vaqtda tayyorlab qo'yish
   (window.requestIdleCallback || (f => setTimeout(f, 1500)))(() => buildOqIdx());
   console.info(`Tayyor: ${Math.round(performance.now())} ms, ${nv} tugun, ${nc * 2} uchburchak`);
-  (function loop() {
+  let lastAnim = 0;
+  (function loop(now) {
     requestAnimationFrame(loop);
-    if (!dirtyF) return; dirtyF = false;
+    // oqim animatsiyasi: ~30 kadr/s, 0.8 to'lqin/s (vaqt bir soatda qaytadan boshlanadi)
+    const anim = OQ && oqG.visible && st.anim && now - lastAnim > 32;
+    if (anim) { lastAnim = now; uT.value = (now / 1000 % 3600) * 0.8; }
+    if (!dirtyF && !anim) return;
     renderer.render(scene, camera);
-    placeLabels(stage.clientWidth, stage.clientHeight);
-    placePin();
-  })();
+    if (dirtyF) { placeLabels(stage.clientWidth, stage.clientHeight); placePin(); }
+    dirtyF = false;
+  })(0);
   window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY, OQ, nearStream, groundY };
 })().catch(e => { const m = document.getElementById('msg'); m.textContent = 'Xato: ' + e.message; m.className = 'err'; console.error(e); });
 </script>
