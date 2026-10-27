@@ -3,3 +3,8 @@ __pycache__/
 *.tmp
 dem4m/
 hydro/
+# lokal: foydalanuvchi bergan kanal ma'lumoti ochiq saytga chiqmaydi
+kanal/
+kanal_build.py
+lokal.html
+lokal_ochish.bat

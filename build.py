@@ -43,7 +43,11 @@ def main():
     ap.add_argument("--og-image", default="", help="ulashish rasmi uchun to'liq URL")
     ap.add_argument("--no-tiles", action="store_true", help="4 m bo'laklarsiz (bosilgan nuqta 50 m to'rdan)")
     ap.add_argument("--no-streams", action="store_true", help="suv oqimi qatlamisiz")
+    ap.add_argument("--no-kanal", action="store_true", help="kanal qatlamisiz (kanal/ faqat lokal ma'lumot)")
+    ap.add_argument("--ochiq", action="store_true", help="ochiq sayt uchun: --no-tiles va --no-kanal")
     a = ap.parse_args()
+    if a.ochiq:
+        a.no_tiles = a.no_kanal = True
     res = a.res
 
     g = gpd.read_file(SHP)
@@ -206,13 +210,16 @@ def main():
                "mx": np.round(mx, 2).ravel().tolist(), "my": np.round(my, 2).ravel().tolist()},
         "t4": t4,
         "oqim": oqim,
+        # kanallar (kanal_build.py): foydalanuvchi ma'lumoti, faqat lokal nusxada (ochiq saytga chiqmaydi)
+        "kanal": os.path.exists(os.path.join(HERE, "kanal", "kanallar.json")) and not a.no_kanal,
         "voids": voids,
         "tum": tum, "outer": L_outer, "inner": L_inner,
     }
     # versiya: sahifa ochilganda version.json bilan solishtiradi, eski (keshdagi) nusxa bo'lsa o'zini yangilaydi
     import time
     data["ver"] = time.strftime("%Y%m%d%H%M%S")
-    json.dump({"ver": data["ver"]}, open(os.path.join(HERE, "version.json"), "w"))
+    if os.path.abspath(a.out) == os.path.join(HERE, "index.html"):  # faqat sayt sahifasi uchun
+        json.dump({"ver": data["ver"]}, open(os.path.join(HERE, "version.json"), "w"))
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     tpl = open(os.path.join(HERE, "Fargona_3D.template.html"), encoding="utf-8").read()
     three = open(os.path.join(HERE, "vendor", "three-r128.min.js"), encoding="utf-8").read()
