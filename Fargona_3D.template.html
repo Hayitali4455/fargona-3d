@@ -1193,7 +1193,7 @@ const D = /*__DATA__*/null;
   /* ---------- Binolar: OpenStreetMap (bino/, bino_build.py), yaqinlashganda bo'lakma-bo'lak ---------- */
   const bldG = new THREE.Group(); scene.add(bldG);
   const bldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const B_SHOW = LITE ? 7000 : 12000, B_RAD = LITE ? 4500 : 8000;
+  const B_SHOW = LITE ? 8000 : 14000, B_RAD = LITE ? 5000 : 9000, B_MAX = LITE ? 16 : 36;
   const B_TYPE = { yes: 'bino', house: 'turar uy', detached: 'turar uy', residential: 'turar joy', apartments: 'ko‘p qavatli uy',
     school: 'maktab', kindergarten: 'bog‘cha', university: 'oliy o‘quv yurti', college: 'kollej', hospital: 'shifoxona',
     clinic: 'poliklinika', mosque: 'masjid', commercial: 'savdo binosi', retail: 'do‘kon', office: 'ofis', industrial: 'sanoat binosi',
@@ -1209,21 +1209,33 @@ const D = /*__DATA__*/null;
   $('chipBino').addEventListener('click', () => { st.bino = !st.bino; $('chipBino').setAttribute('aria-pressed', st.bino); scheduleBld(); dirty(); });
   let bTimer = 0;
   function scheduleBld() { clearTimeout(bTimer); bTimer = setTimeout(updateBld, 120); }
+  // Binolar kamera yerga yaqin bo'lsa ko'rinadi: nishon atrofi (yaqinlashganda) + kameraning o'zi atrofi (past burchakdan qaraganda)
   function updateBld() {
-    const show = st.bino && BIDX && cam.r < B_SHOW;
+    const camGround = camera.position.y - groundY(camera.position.x, camera.position.z);  // kamera yerdan qancha balandda
+    const show = st.bino && BIDX && (cam.r < B_SHOW || camGround < B_SHOW * 0.5);
     bldG.visible = !!show; $('sAttr').style.display = show ? '' : 'none';
     $('binoHint').style.display = st.bino && BIDX && !show ? '' : 'none';  // uzoqda: binolar ko'rinmaydi
     dirty(); if (!show) return;
-    const X = cam.t.x + CX, Y = CY - cam.t.z, R = Math.min(B_RAD, Math.max(2500, cam.r * 1.3)), TS = BIDX.tile, want = new Set();
-    for (let i = Math.floor((X - R) / TS); i <= Math.floor((X + R) / TS); i++) for (let j = Math.floor((Y - R) / TS); j <= Math.floor((Y + R) / TS); j++) {
-      const k = i + '_' + j, d = Math.hypot((i + 0.5) * TS - X, (j + 0.5) * TS - Y);
-      if (BIDX.has.has(k) && d < R + TS * 0.71) want.add(k);
+    const TS = BIDX.tile, want = new Map();  // kalit -> eng yaqin markazgacha masofa
+    const centers = [];
+    if (cam.r < B_SHOW) centers.push([cam.t.x + CX, CY - cam.t.z, Math.min(B_RAD, Math.max(2500, cam.r * 1.3))]);
+    if (camGround < B_SHOW * 0.5) {
+      // kamera ostidagi nuqta va undan qarash yo'nalishi bo'yicha oldinga
+      const gx = camera.position.x + CX, gy = CY - camera.position.z, dx = cam.t.x - camera.position.x, dz = cam.t.z - camera.position.z, l = Math.hypot(dx, dz) || 1;
+      const ahead = Math.min(B_RAD * 0.8, l);
+      centers.push([gx + dx / l * ahead, gy - dz / l * ahead, B_RAD]);
     }
-    want.forEach(k => { if (!bTiles.has(k)) loadTile(k); });
+    for (const [X, Y, R] of centers)
+      for (let i = Math.floor((X - R) / TS); i <= Math.floor((X + R) / TS); i++) for (let j = Math.floor((Y - R) / TS); j <= Math.floor((Y + R) / TS); j++) {
+        const k = i + '_' + j, d = Math.hypot((i + 0.5) * TS - X, (j + 0.5) * TS - Y);
+        if (BIDX.has.has(k) && d < R + TS * 0.71 && !(want.get(k) <= d)) want.set(k, d);
+      }
+    // ko'pi bilan B_MAX bo'lak (eng yaqinlari), qolganlari xotiradan chiqariladi
+    const keep = new Set([...want.entries()].sort((a, b) => a[1] - b[1]).slice(0, B_MAX).map(e => e[0]));
+    keep.forEach(k => { if (!bTiles.has(k)) loadTile(k); });
     bTiles.forEach((t, k) => {
-      if (want.has(k) || t === 'loading') return;
-      const [i, j] = k.split('_').map(Number);
-      if (Math.hypot((i + 0.5) * TS - X, (j + 0.5) * TS - Y) > R * 1.6 + TS) { bldG.remove(t.mesh); t.mesh.geometry.dispose(); bTiles.delete(k); }
+      if (keep.has(k) || t === 'loading') return;
+      bldG.remove(t.mesh); t.mesh.geometry.dispose(); bTiles.delete(k);
     });
   }
   async function loadTile(k) {
