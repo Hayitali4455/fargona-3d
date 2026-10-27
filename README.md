@@ -27,6 +27,7 @@ Farg‘ona viloyati relyefi (DEM) va 19 ta tuman/shahar chegarasini ko‘rsatadi
 
 - **Manba**: [Open-Meteo](https://open-meteo.com) — ECMWF IFS (9 km) tarixiy ma’lumoti, CC BY 4.0. Bu o‘lchov stansiyasi emas, model baholari; har tuman uchun tuman ichidagi bitta nuqta (`rain/nuqtalar.json`) olinadi. Quruq vodiyda model yillik yog‘inni stansiya o‘lchovlaridan ancha ko‘p ko‘rsatishi mumkin (masalan, Farg‘ona shahri uchun ~300 mm), shuning uchun raqamlarni tumanlar, oylar va yillar orasidagi nisbiy farqlarni ko‘rish uchun ishlating.
 - **Davr**: 2017-01-01 dan (IFS arxivi shu kundan) kechagi kungacha, kunlik yig‘indi (yomg‘ir + qor suvi), `rain/yogin.json` (0.1 mm butun sonlarda).
+- **Soatlik**: `rain/soatlik/<yil>.json`: o‘sha nuqtalarda soatlik yog‘in (0.1 mm, Toshkent vaqti). “HH:00” qiymati oldingi bir soat yig‘indisi (Open-Meteo qoidasi), shuning uchun kun yig‘indisi 00:00…23:00 qiymatlariga teng. Ketma-ket nollar manfiy son bilan qisqartirilgan (`-k` = k ta nol soat). Portalda tuman kartasining “Soatlik” yorlig‘ida ko‘rinadi; oraliqdagi eng kuchli soatlik jala (mm/soat) ham hisoblanadi. Fayli yo‘q yil `rain_update.py` ning oddiy ishga tushirilishida o‘zi yuklanadi.
 - **Yangilanish**: GitHub Actions (`.github/workflows/yogin.yml`) har kuni 06:30 (Toshkent) da `rain_update.py` ni ishga tushiradi: oxirgi 45 kun arxivdan qayta olinadi, arxivda hali yo‘q kunlar operativ modeldan to‘ldiriladi va keyinroq almashtiriladi. Qo‘lda ishga tushirish: GitHub → Actions → “Yog'in ma'lumotini yangilash” → Run workflow.
 
 ## Tuproq, yer qoplami va binolar

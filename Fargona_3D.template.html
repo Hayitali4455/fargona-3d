@@ -167,6 +167,13 @@
   .rstats b { font-size: 15px; font-weight: 600; }
   .rstats b i { font-style: normal; font-size: 11px; font-weight: 400; color: #c3c2b7; }
   #iRain .seg { margin-bottom: 6px; }
+  #rhNav { display: none; align-items: center; gap: 6px; margin: 0 0 6px; }
+  #rhNav input { flex: 1; min-width: 0; background: #111926; color: var(--text); border: 1px solid var(--panel-line);
+    border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; }
+  #rhNav button { width: 30px; height: 28px; flex: none; background: var(--chip); color: var(--text); border: 1px solid var(--panel-line);
+    border-radius: 6px; font-size: 16px; line-height: 1; cursor: pointer; }
+  #rhNav button:disabled { opacity: .35; cursor: default; }
+  #rChart .hit.day { cursor: pointer; }
   #rChart { display: block; width: 100%; height: 128px; overflow: visible; }
   #rChart .hit { fill: transparent; cursor: default; }
   .rleg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: #c3c2b7; margin-top: 4px; }
@@ -274,7 +281,8 @@
     <div id="iRain">
       <h3>Yog‘ingarchilik <span id="rAsOf"></span></h3>
       <div class="rstats" id="rStats"></div>
-      <div class="seg" id="rTab"><button data-c="m" class="on">Oylar</button><button data-c="y">Yillar</button><button data-c="r">Oraliq</button></div>
+      <div class="seg" id="rTab"><button data-c="m" class="on">Oylar</button><button data-c="y">Yillar</button><button data-c="r">Oraliq</button><button data-c="h">Soatlik</button></div>
+      <div id="rhNav"><button id="rhPrev" aria-label="Oldingi kun">‹</button><input type="date" id="rhDay" aria-label="Kun"><button id="rhNext" aria-label="Keyingi kun">›</button></div>
       <svg id="rChart" viewBox="0 0 242 128" role="img"></svg>
       <div class="rleg" id="rLeg"></div>
       <div id="rTip"></div>
@@ -1372,6 +1380,62 @@ const D = /*__DATA__*/null;
     return { J, t0, n, day, last, ly, y0: day(0).getUTCFullYear(), fullTo, byCode, reg, cache: new Map() };
   }
   const series = code => code ? RAIN.byCode.get(code) : RAIN.reg;
+
+  // Soatlik yog'in: rain/soatlik/<yil>.json (0.1 mm, Toshkent vaqti; "HH:00" qiymati — oldingi bir soat yig'indisi,
+  // ketma-ket nollar -k bilan qisqartirilgan). Yil fayli faqat kerak bo'lganda yuklanadi.
+  const HR = new Map(), HRv = new Map();
+  function hourYear(y) {
+    if (HR.has(y)) return HR.get(y);
+    const urls = [`rain/soatlik/${y}.json`];
+    if (y >= RAIN.ly) urls.push(`https://raw.githubusercontent.com/Hayitali4455/fargona-3d/main/rain/soatlik/${y}.json`);
+    const pr = Promise.allSettled(urls.map(u => fetch(u, { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status))))
+      .then(rs => {
+        const got = rs.filter(r => r.status === 'fulfilled' && r.value && r.value.tuman).map(r => r.value).sort((a, b) => b.soat - a.soat);
+        if (!got.length) return null;
+        const J = got[0], n = J.soat, byCode = new Map(), area = new Map(RAIN.J.tuman.map(t => [t.code, t.area_km2]));
+        for (const t of J.tuman) {
+          const a = new Float32Array(n).fill(NaN); let i = 0;
+          for (const v of t.h) { if (v != null && v < 0) { a.fill(0, i, i - v); i -= v; } else { if (v != null) a[i] = v / 10; i++; } }
+          byCode.set(t.code, a);
+        }
+        const reg = new Float32Array(n);  // viloyat: tumanlar maydoni bo'yicha o'rtacha
+        for (let i = 0; i < n; i++) {
+          let s = 0, w = 0;
+          byCode.forEach((a, c) => { if (!isNaN(a[i]) && area.has(c)) { s += a[i] * area.get(c); w += area.get(c); } });
+          reg[i] = w ? s / w : NaN;
+        }
+        return { n, byCode, reg };
+      }).catch(() => null)
+      .then(v => { HRv.set(y, v); if ($('info').style.display === 'block' && st.theme === 'yogin') renderRain(st.sel); return v; });
+    HR.set(y, pr); return pr;
+  }
+  // kun indeksi -> {y, h0}: yil va yil boshidan soat
+  const dayHour = i => { const d = RAIN.day(i), y = d.getUTCFullYear(); return { y, h0: Math.round((d - Date.UTC(y, 0, 1)) / 36e5) }; };
+  // tanlangan kunning 24 soati; undefined — yuklanmoqda, null — ma'lumot yo'q
+  function dayHours(code, i) {
+    const { y, h0 } = dayHour(i);
+    if (!HRv.has(y)) { hourYear(y); return undefined; }
+    const Y = HRv.get(y), a = Y && (code ? Y.byCode.get(code) : Y.reg);
+    if (!a || h0 >= Y.n) return null;
+    const v = a.slice(h0, h0 + 24);
+    return [...v].some(x => !isNaN(x)) ? v : null;
+  }
+  // oraliqdagi eng kuchli soat; undefined — yuklanmoqda
+  function rangeHourMax(code, i0, i1) {
+    const ya = dayHour(i0).y, yb = dayHour(i1).y; let wait = false;
+    for (let y = ya; y <= yb; y++) if (!HRv.has(y)) { hourYear(y); wait = true; }
+    if (wait) return undefined;
+    let max = -1, at = null;
+    for (let y = ya; y <= yb; y++) {
+      const Y = HRv.get(y), a = Y && (code ? Y.byCode.get(code) : Y.reg); if (!a) continue;
+      const h0 = y === ya ? dayHour(i0).h0 : 0, h1 = Math.min(Y.n, y === yb ? dayHour(i1).h0 + 24 : Y.n);
+      for (let h = h0; h < h1; h++) if (a[h] > max) { max = a[h]; at = Date.UTC(y, 0, 1) + h * 36e5; }
+    }
+    return max < 0 ? null : { max, at };
+  }
+  const hh = k => String((k + 24) % 24).padStart(2, '0') + ':00';
+  // "HH:00" qiymati (HH-1)..HH soatiga tegishli
+  const hourTxt = t => { const d = new Date(t), k = d.getUTCHours(); return `${fmtDate(new Date(t - 36e5))} ${hh(k - 1)}–${hh(k)}`; };
   function sumDays(a, i0, i1) { let s = 0, c = 0; for (let i = Math.max(0, i0); i <= i1; i++) if (!isNaN(a[i])) { s += a[i]; c++; } return c ? s : NaN; }
   function periodSum(a, p) {
     if (p === 'oraliq') return sumDays(a, st.rFrom, st.rTo);
@@ -1424,6 +1488,13 @@ const D = /*__DATA__*/null;
     if (!RAIN || st.theme !== 'yogin') { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
     const code = n ? T[n - 1].code : 0, a = series(code), G = agg(code);
+    if (st.chart === 'h' && st.hDay == null) {  // birinchi marta: oraliqdagi (yoki oxirgi 30 kundagi) eng yomg'irli kun
+      const i0 = st.rainPer === 'oraliq' ? st.rFrom : RAIN.n - 30, i1 = st.rainPer === 'oraliq' ? st.rTo : RAIN.n - 1;
+      let b = i1; for (let i = i0; i <= i1; i++) if (a[i] > (a[b] || 0)) b = i;
+      st.hDay = b;
+    }
+    $('rhNav').style.display = st.chart === 'h' ? 'flex' : 'none';
+    if (st.chart === 'h') { $('rhDay').value = isoDay(st.hDay); $('rhPrev').disabled = st.hDay <= 0; $('rhNext').disabled = st.hDay >= RAIN.n - 1; }
     $('rAsOf').textContent = 'oxirgi kun ' + fmtDate(RAIN.last);
     const tile = (lbl, v, sub) => `<div><small>${lbl}</small><b>${fmtMm(v)} <i>mm${sub ? ' · ' + sub : ''}</i></b></div>`;
     const ytd = periodSum(a, 'ytd');
@@ -1432,10 +1503,12 @@ const D = /*__DATA__*/null;
       $('rStats').innerHTML = `<div style="grid-column:1/-1"><small>Oraliq: ${perTxt('oraliq')} (${st.rTo - st.rFrom + 1} kun)</small><b>${fmtMm(R.sum)} <i>mm${R.norm != null ? ` · ko‘p yillik o‘rtacha ${fmtMm(R.norm)} mm` : ''}</i></b></div>` +
         `<div><small>Eng ko‘p kunlik</small><b>${fmtMm(R.max)} <i>mm${R.maxDay != null ? ' · ' + fmtDate(RAIN.day(R.maxDay)) : ''}</i></b></div>` +
         `<div><small>Yog‘inli kunlar (≥ 1 mm)</small><b>${R.wet} <i>kun</i></b></div>`;
+      const M = rangeHourMax(code, st.rFrom, st.rTo);
+      if (M !== null) $('rStats').innerHTML += `<div style="grid-column:1/-1"><small>Eng kuchli soatlik jala</small><b>${M ? fmtMm(M.max) : '…'} <i>mm/soat${M ? ' · ' + hourTxt(M.at) : ''}</i></b></div>`;
     } else
     $('rStats').innerHTML = tile('Oxirgi 7 kun', periodSum(a, 7)) + tile('Oxirgi 30 kun', periodSum(a, 30)) +
       tile(`${RAIN.ly}-yil (hozirgacha)`, ytd) + tile(`O‘rtacha yillik (${RAIN.y0}–${RAIN.fullTo})`, G.yMean);
-    drawChart(G);
+    drawChart(G, code);
   }
 
   // Oraliq ko'rsatkichlari: jami, eng ko'p kunlik, yog'inli kunlar; oraliq <= 1 yil bo'lsa — to'liq yillardagi
@@ -1457,7 +1530,7 @@ const D = /*__DATA__*/null;
     return { sum, max: Math.max(0, max), maxDay, wet, norm };
   }
   // Ustunli grafik: ustun — qiymat, ref — ko'p yillik o'rtacha (oylarda har ustunda belgi, yillarda bitta chiziq)
-  function drawChart(G) {
+  function drawChart(G, code) {
     const svg = $('rChart'), W = Math.round(svg.getBoundingClientRect().width) || 242, H = 128, L = 30, R = 4, Tp = 8, B = 18;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     let items, refLine = null, title;
@@ -1475,7 +1548,7 @@ const D = /*__DATA__*/null;
       // oraliq: 120 kungacha kunlik, 5 yilgacha oylik, undan uzun — yillik ustunlar
       const a = G.a, nd = st.rTo - st.rFrom + 1; items = [];
       if (nd <= 120) {
-        for (let i = st.rFrom; i <= st.rTo; i++) { const d = RAIN.day(i); items.push({ lab: d.getUTCDate() === 1 || i === st.rFrom ? OY[d.getUTCMonth()] : String(d.getUTCDate()), full: fmtDate(d), v: isNaN(a[i]) ? 0 : a[i] }); }
+        for (let i = st.rFrom; i <= st.rTo; i++) { const d = RAIN.day(i); items.push({ lab: d.getUTCDate() === 1 || i === st.rFrom ? OY[d.getUTCMonth()] : String(d.getUTCDate()), full: fmtDate(d), v: isNaN(a[i]) ? 0 : a[i], day: i }); }
         title = 'Kunlik yog‘in, tanlangan oraliq';
       } else {
         const byYear = nd > 5 * 366, map = new Map();
@@ -1486,7 +1559,22 @@ const D = /*__DATA__*/null;
         map.forEach((v, key) => items.push(byYear ? { lab: String(key).slice(2), full: String(key), v } : { lab: OY[key % 12], full: `${OY[key % 12]} ${Math.floor(key / 12)}`, v }));
         title = byYear ? 'Yillik yog‘in, tanlangan oraliq' : 'Oylik yog‘in, tanlangan oraliq';
       }
-      $('rLeg').innerHTML = `<span>${perTxt('oraliq')} · ${nd <= 120 ? 'kunlik' : nd > 5 * 366 ? 'yillik' : 'oylik'}</span>`;
+      $('rLeg').innerHTML = `<span>${perTxt('oraliq')} · ${nd <= 120 ? 'kunlik (ustunni bosing — soatlik)' : nd > 5 * 366 ? 'yillik' : 'oylik'}</span>`;
+    } else if (st.chart === 'h') {
+      const v = dayHours(code, st.hDay), d = RAIN.day(st.hDay);
+      if (!v) {
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg._items = [];
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="11" fill="${MUTED}">${v === undefined ? 'Yuklanmoqda…' : 'Bu kun uchun soatlik ma’lumot yo‘q'}</text>`;
+        $('rLeg').innerHTML = ''; $('rTable').innerHTML = ''; return;
+      }
+      items = []; let sum = 0, km = 0;
+      for (let k = 0; k < 24; k++) {
+        const x = isNaN(v[k]) ? 0 : v[k]; sum += x; if (x > (isNaN(v[km]) ? 0 : v[km])) km = k;
+        items.push({ lab: k % 3 === 0 ? String(k) : '', full: `${k ? fmtDate(d) : fmtDate(RAIN.day(st.hDay - 1))} ${hh(k - 1)}–${hh(k)}`, v: x });
+      }
+      title = `Soatlik yog‘in, ${fmtDate(d)}`;
+      $('rLeg').innerHTML = `<span>Jami ${fmtMm(sum)} mm · eng kuchli ${fmtMm(isNaN(v[km]) ? 0 : v[km])} mm/soat (${hh(km - 1)}–${hh(km)})</span>` +
+        '<span>Toshkent vaqti; ustun — shu soatgacha bo‘lgan 1 soat</span>';
     } else {
       items = [];
       for (let y = RAIN.y0; y <= RAIN.ly; y++) {
@@ -1508,13 +1596,13 @@ const D = /*__DATA__*/null;
       if (h > 0.3) o += `<path d="M${x} ${H - B}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + bw - r}Q${x + bw} ${y} ${x + bw} ${y + r}V${H - B}Z" fill="${C_BAR}"${it.part ? ' fill-opacity="0.45"' : ''}/>`;
       if (it.ref != null) o += `<line x1="${x}" x2="${x + bw}" y1="${yv(it.ref)}" y2="${yv(it.ref)}" stroke="${C_REF}" stroke-width="2" stroke-linecap="round"/>`;
       const every = Math.ceil(k / 12);  // ko'p ustunda har n-chisiga yorliq
-      if (k <= 12 ? i % 2 === (k - 1) % 2 : (k - 1 - i) % every === 0) o += `<text x="${x + bw / 2}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${MUTED}">${it.lab}</text>`;
-      o += `<rect class="hit" data-i="${i}" x="${x - gap / 2}" y="${Tp}" width="${bw + gap}" height="${H - Tp - B}"/>`;
+      if (st.chart === 'h' ? it.lab !== '' : k <= 12 ? i % 2 === (k - 1) % 2 : (k - 1 - i) % every === 0) o += `<text x="${x + bw / 2}" y="${H - 5}" text-anchor="middle" font-size="9" fill="${MUTED}">${it.lab}</text>`;
+      o += `<rect class="hit${it.day != null ? ' day' : ''}" data-i="${i}" x="${x - gap / 2}" y="${Tp}" width="${bw + gap}" height="${H - Tp - B}"/>`;
     });
     if (refLine != null) o += `<line x1="${L}" x2="${W - R}" y1="${yv(refLine)}" y2="${yv(refLine)}" stroke="${C_REF}" stroke-width="2" stroke-dasharray="5 3"/>`;
     svg.innerHTML = o;
     svg._items = items;
-    $('rTable').innerHTML = `<tr><td>${st.chart === 'm' ? 'Oy' : st.chart === 'r' ? 'Davr' : 'Yil'}</td><td>mm</td>${st.chart === 'm' ? '<td>o‘rtacha</td>' : ''}</tr>` +
+    $('rTable').innerHTML = `<tr><td>${st.chart === 'm' ? 'Oy' : st.chart === 'r' ? 'Davr' : st.chart === 'h' ? 'Soat' : 'Yil'}</td><td>mm</td>${st.chart === 'm' ? '<td>o‘rtacha</td>' : ''}</tr>` +
       items.map(it => `<tr><td>${it.full}</td><td>${fmtMm(it.v)}</td>${it.ref != null ? `<td>${fmtMm(it.ref)}</td>` : ''}</tr>`).join('');
   }
   // grafik ustida kursor/barmoq: ustun ma'lumoti
@@ -1522,7 +1610,8 @@ const D = /*__DATA__*/null;
     const t = e.target.closest && e.target.closest('.hit'), tip = $('rTip');
     if (!t) { tip.style.display = 'none'; return; }
     const it = $('rChart')._items[+t.dataset.i], bx = t.getBoundingClientRect(), px = $('iRain').getBoundingClientRect();
-    tip.innerHTML = `<b>${it.full}</b>: ${fmtMm(it.v)} mm` + (it.ref != null ? `<br>o‘rtacha: ${fmtMm(it.ref)} mm` : '');
+    tip.innerHTML = `<b>${it.full}</b>: ${fmtMm(it.v)} mm` + (it.ref != null ? `<br>o‘rtacha: ${fmtMm(it.ref)} mm` : '') +
+      (it.day != null ? '<br><small>bosing — soatlik</small>' : '');
     tip.style.left = Math.max(60, Math.min(px.width - 60, bx.left + bx.width / 2 - px.left)) + 'px';
     tip.style.top = (bx.top - px.top + 4) + 'px';
     tip.style.display = 'block';
@@ -1530,6 +1619,17 @@ const D = /*__DATA__*/null;
   $('rChart').addEventListener('pointermove', chartTip);
   $('rChart').addEventListener('pointerdown', chartTip);
   $('rChart').addEventListener('pointerleave', () => { $('rTip').style.display = 'none'; });
+  // kunlik ustun bosilsa — o'sha kunning soatlik grafigi
+  $('rChart').addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('.hit'); if (!t) return;
+    const it = $('rChart')._items[+t.dataset.i]; if (!it || it.day == null) return;
+    st.hDay = it.day; st.chart = 'h'; [...$('rTab').children].forEach(b => b.classList.toggle('on', b.dataset.c === 'h'));
+    $('rTip').style.display = 'none'; renderRain(st.sel);
+  });
+  const goDay = i => { if (isNaN(i)) return; st.hDay = Math.max(0, Math.min(RAIN.n - 1, i)); renderRain(st.sel); };
+  $('rhPrev').addEventListener('click', () => goDay(st.hDay - 1));
+  $('rhNext').addEventListener('click', () => goDay(st.hDay + 1));
+  $('rhDay').addEventListener('change', () => goDay(dayIdx($('rhDay').value)));
   $('rTab').addEventListener('click', e => {
     const c = e.target.dataset && e.target.dataset.c; if (!c) return;
     st.chart = c; [...$('rTab').children].forEach(b => b.classList.toggle('on', b.dataset.c === c));
@@ -1581,11 +1681,11 @@ const D = /*__DATA__*/null;
     got.sort((x, y) => (y.oxiri + y.yangilandi).localeCompare(x.oxiri + x.yangilandi));
     RAIN = prepRain(got[0]);
     st.rFrom = RAIN.n - 30; st.rTo = RAIN.n - 1;  // oraliq boshida: oxirgi 30 kun
-    for (const el of [$('rgFrom'), $('rgTo')]) { el.min = isoDay(0); el.max = isoDay(RAIN.n - 1); }
+    for (const el of [$('rgFrom'), $('rgTo'), $('rhDay')]) { el.min = isoDay(0); el.max = isoDay(RAIN.n - 1); }
     $('rgFrom').value = isoDay(st.rFrom); $('rgTo').value = isoDay(st.rTo);
     const J = RAIN.J, upd = new Date(J.yangilandi);
     $('rgUpd').textContent = 'yangilangan ' + fmtDate(new Date(Date.UTC(upd.getUTCFullYear(), upd.getUTCMonth(), upd.getUTCDate())));
-    $('rgSrc').textContent = `${fmtDate(RAIN.day(0))} – ${fmtDate(RAIN.last)}, har tuman uchun bitta nuqta. Manba: Open-Meteo.com (ECMWF IFS, 9 km), CC BY 4.0. ` +
+    $('rgSrc').textContent = `${fmtDate(RAIN.day(0))} – ${fmtDate(RAIN.last)}, har tuman uchun bitta nuqta, kunlik va soatlik. Manba: Open-Meteo.com (ECMWF IFS, 9 km), CC BY 4.0. ` +
       'Model baholari: quruq vodiyda stansiya o‘lchovlaridan ko‘proq chiqishi mumkin' +
       (J.tez ? `; ${fmtDate(new Date(J.tez + 'T00:00:00Z'))} dan keyingi kunlar taxminiy (operativ model).` : '.');
     rb.disabled = false; rb.title = 'Yog‘ingarchilik qatlami';
