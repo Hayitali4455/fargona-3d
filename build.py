@@ -209,6 +209,10 @@ def main():
         "voids": voids,
         "tum": tum, "outer": L_outer, "inner": L_inner,
     }
+    # versiya: sahifa ochilganda version.json bilan solishtiradi, eski (keshdagi) nusxa bo'lsa o'zini yangilaydi
+    import time
+    data["ver"] = time.strftime("%Y%m%d%H%M%S")
+    json.dump({"ver": data["ver"]}, open(os.path.join(HERE, "version.json"), "w"))
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     tpl = open(os.path.join(HERE, "Fargona_3D.template.html"), encoding="utf-8").read()
     three = open(os.path.join(HERE, "vendor", "three-r128.min.js"), encoding="utf-8").read()

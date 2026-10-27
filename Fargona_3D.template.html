@@ -1536,6 +1536,12 @@ const D = /*__DATA__*/null;
   const hm = /t=(\d+)/.exec(location.hash);
   if (hm) { const v = +hm[1], n = T.findIndex(t => t.code === v) + 1 || (v <= T.length ? v : 0); if (n) select(n, 'jump'); }
   msg.style.display = 'none';
+  // Brauzer keshida eski sahifa qolgan bo'lsa (GitHub Pages 10 daqiqa keshlaydi): yangi versiya bor bo'lsa bir marta qayta yuklash
+  fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(v => {
+    if (!v || !D.ver || v.ver <= D.ver) return;
+    try { if (sessionStorage.getItem('f3d-reload') === v.ver) return; sessionStorage.setItem('f3d-reload', v.ver); } catch (e) { }
+    location.reload();
+  }).catch(() => { });
   // oqim indeksini birinchi bosishdan oldin, bo'sh vaqtda tayyorlab qo'yish
   (window.requestIdleCallback || (f => setTimeout(f, 1500)))(() => buildOqIdx());
   console.info(`Tayyor: ${Math.round(performance.now())} ms, ${nv} tugun, ${nc * 2} uchburchak`);
