@@ -8,6 +8,7 @@ Farg‘ona viloyati relyefi (DEM) va 19 ta tuman/shahar chegarasini ko‘rsatadi
 - Tuman nomlari doim ko‘rinib turadi. Tumanni bosganda uning maydoni va balandlik ko‘rsatkichlari chiqadi.
 - Istalgan nuqtani bosganda o‘sha joyning balandligi ko‘rsatiladi (DEM 50 m to‘ridan; vodiyda xato odatda 1 m dan kam, tog‘larda bir necha metr).
 - **Suv oqimi yo‘llari**: relyef bo‘yicha suv oqishi mumkin bo‘lgan yo‘llar suv ko‘rinishida chiziladi: kengligi havza maydoniga bog‘liq (taxminan 2.5·√havza m, 4–180 m), to‘lqinlar oqim yo‘nalishida harakatlanadi (“Oqim animatsiyasi” bilan o‘chiriladi). Polzunok bilan ko‘rsatiladigan eng kichik havza maydoni tanlanadi (1–500 km², boshlang‘ich 25 km²). Oqim ustiga bosilsa, uning tartibi va havza maydoni chiqadi.
+- **Yog‘ingarchilik** (“Yog‘in” tugmasi): tumanlar tanlangan davrdagi (7 kun, 30 kun, joriy yil, 12 oy) yog‘in miqdori bo‘yicha bo‘yaladi; tuman kartasida oxirgi 12 oy ko‘p yillik o‘rtacha bilan va 2017-yildan beri yillik jamlar ko‘rsatiladi. Ma’lumot har kuni avtomatik yangilanadi.
 - Bitta tumanni ochadigan havola: `…/fargona-3d/#t=<SOATO kodi>`, masalan `#t=1730226` (So‘x tumani).
 
 ## Boshqaruv
@@ -18,6 +19,12 @@ Farg‘ona viloyati relyefi (DEM) va 19 ta tuman/shahar chegarasini ko‘rsatadi
 | Surish | o‘ng tugma yoki Shift + sudrash | ikki barmoq |
 | Yaqinlashtirish | g‘ildirak, ikki marta bosish | ikki barmoqni yoyish, ikki marta bosish |
 | Tuman va nuqta balandligi | bosish | bosish |
+
+## Yog‘ingarchilik ma’lumoti
+
+- **Manba**: [Open-Meteo](https://open-meteo.com) — ECMWF IFS (9 km) tarixiy ma’lumoti, CC BY 4.0. Bu o‘lchov stansiyasi emas, model baholari; har tuman uchun tuman ichidagi bitta nuqta (`rain/nuqtalar.json`) olinadi. Quruq vodiyda model yillik yog‘inni stansiya o‘lchovlaridan ancha ko‘p ko‘rsatishi mumkin (masalan, Farg‘ona shahri uchun ~300 mm), shuning uchun raqamlarni tumanlar, oylar va yillar orasidagi nisbiy farqlarni ko‘rish uchun ishlating.
+- **Davr**: 2017-01-01 dan (IFS arxivi shu kundan) kechagi kungacha, kunlik yig‘indi (yomg‘ir + qor suvi), `rain/yogin.json` (0.1 mm butun sonlarda).
+- **Yangilanish**: GitHub Actions (`.github/workflows/yogin.yml`) har kuni 06:30 (Toshkent) da `rain_update.py` ni ishga tushiradi: oxirgi 45 kun arxivdan qayta olinadi, arxivda hali yo‘q kunlar operativ modeldan to‘ldiriladi va keyinroq almashtiriladi. Qo‘lda ishga tushirish: GitHub → Actions → “Yog'in ma'lumotini yangilash” → Run workflow.
 
 ## Suv oqimi yo‘llari qanday hisoblangan
 

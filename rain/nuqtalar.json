@@ -1,0 +1,135 @@
+[
+ {
+  "code": 1730206,
+  "name": "Qo‘shtepa tumani",
+  "area_km2": 368.0,
+  "lat": 40.5149,
+  "lon": 71.6107
+ },
+ {
+  "code": 1730230,
+  "name": "O‘zbekiston tumani",
+  "area_km2": 679.1,
+  "lat": 40.318,
+  "lon": 70.8436
+ },
+ {
+  "code": 1730405,
+  "name": "Qo‘qon shahri",
+  "area_km2": 63.2,
+  "lat": 40.5303,
+  "lon": 70.9453
+ },
+ {
+  "code": 1730408,
+  "name": "Quvasoy shahri",
+  "area_km2": 263.7,
+  "lat": 40.3796,
+  "lon": 71.944
+ },
+ {
+  "code": 1730412,
+  "name": "Marg‘ilon shahri",
+  "area_km2": 47.6,
+  "lat": 40.4716,
+  "lon": 71.7215
+ },
+ {
+  "code": 1730401,
+  "name": "Farg‘ona shahri",
+  "area_km2": 107.8,
+  "lat": 40.3967,
+  "lon": 71.7902
+ },
+ {
+  "code": 1730209,
+  "name": "Bog‘dod tumani",
+  "area_km2": 333.9,
+  "lat": 40.5123,
+  "lon": 71.2523
+ },
+ {
+  "code": 1730215,
+  "name": "Beshariq tumani",
+  "area_km2": 751.9,
+  "lat": 40.4455,
+  "lon": 70.5743
+ },
+ {
+  "code": 1730236,
+  "name": "Dang‘ara tumani",
+  "area_km2": 430.0,
+  "lat": 40.6424,
+  "lon": 70.8584
+ },
+ {
+  "code": 1730212,
+  "name": "Buvayda tumani",
+  "area_km2": 283.6,
+  "lat": 40.6254,
+  "lon": 71.15
+ },
+ {
+  "code": 1730242,
+  "name": "Yozyovon tumani",
+  "area_km2": 405.5,
+  "lat": 40.6639,
+  "lon": 71.4842
+ },
+ {
+  "code": 1730218,
+  "name": "Quva tumani",
+  "area_km2": 437.0,
+  "lat": 40.519,
+  "lon": 72.0568
+ },
+ {
+  "code": 1730227,
+  "name": "Toshloq tumani",
+  "area_km2": 242.7,
+  "lat": 40.5043,
+  "lon": 71.8191
+ },
+ {
+  "code": 1730221,
+  "name": "Uchko‘prik tumani",
+  "area_km2": 271.7,
+  "lat": 40.5195,
+  "lon": 71.0529
+ },
+ {
+  "code": 1730233,
+  "name": "Farg‘ona tumani",
+  "area_km2": 594.2,
+  "lat": 40.2739,
+  "lon": 71.7644
+ },
+ {
+  "code": 1730238,
+  "name": "Furqat tumani",
+  "area_km2": 300.1,
+  "lat": 40.5003,
+  "lon": 70.7628
+ },
+ {
+  "code": 1730203,
+  "name": "Oltiariq tumani",
+  "area_km2": 626.8,
+  "lat": 40.401,
+  "lon": 71.4996
+ },
+ {
+  "code": 1730224,
+  "name": "Rishton tumani",
+  "area_km2": 309.0,
+  "lat": 40.3968,
+  "lon": 71.3062
+ },
+ {
+  "code": 1730226,
+  "name": "So‘x tumani",
+  "area_km2": 224.7,
+  "lat": 40.0711,
+  "lon": 71.0504
+ }
+]
