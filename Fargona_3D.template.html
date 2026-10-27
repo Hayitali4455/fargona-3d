@@ -123,7 +123,34 @@
   #rgTicks span { position: absolute; top: 0; transform: translateX(-50%); }
   #rgTicks span:first-child { transform: none; } #rgTicks span:last-child { transform: translateX(-100%); }
   #rainLg .src { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.35; }
-  body.rain #legend { display: none; }
+  body.rain #legend, body.cat #legend { display: none; }
+  .chipseg { display: flex; background: var(--panel); border: 1px solid var(--panel-line); border-radius: 999px; padding: 3px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
+  .chipseg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; padding: 5px 11px;
+    border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .chipseg button.on { background: #e9eef4; color: #0b111a; }
+  .chipseg button:disabled { opacity: .4; cursor: default; }
+  /* toifali qatlamlar afsonasi (tuproq, yer qoplami) */
+  #catLg { left: 16px; bottom: 44px; width: 280px; padding: 10px 14px 9px; display: none; max-height: 55%; overflow-y: auto; }
+  body.cat #catLg { display: block; }
+  #catLg .t { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 8px; }
+  #catLg .seg { margin: 7px 0 4px; }
+  #catLg ul { list-style: none; margin: 6px 0 0; padding: 0; font-size: 12px; }
+  #catLg li { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+  #catLg li i { flex: none; width: 12px; height: 12px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
+  #catLg li b { margin-left: auto; font-weight: 500; color: #c3c2b7; font-variant-numeric: tabular-nums; }
+  #catLg li small { color: var(--muted); }
+  #catLg .src { font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+  /* kartadagi tuproq / yer qoplami bo'limi */
+  #iTh { display: none; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--panel-line); }
+  #iTh h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+  .stack { display: flex; gap: 2px; height: 12px; margin: 4px 0 8px; }
+  .stack span { border-radius: 2px; min-width: 2px; }
+  .clist { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .clist td { padding: 3px 0; border-top: 1px solid var(--panel-line); }
+  .clist td:nth-child(2), .clist td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; color: #c3c2b7; }
+  .clist td:nth-child(2), .clist td:nth-child(3) { white-space: nowrap; padding-left: 8px; }
+  .clist i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   body.rain #rainLg { display: block; }
 
   /* tuman kartasidagi yog'in bo'limi */
@@ -171,7 +198,10 @@
     #compass { right: 8px; top: 66px; bottom: auto; width: 44px; height: 44px; }
     #ctl { z-index: 3; }
     #status { gap: 12px; padding: 6px 10px; }
-    #chips { left: 8px; top: 66px; bottom: auto; transform: none; }
+    #chips { left: 8px; top: 66px; bottom: auto; transform: none; flex-wrap: wrap; max-width: calc(100% - 70px); }
+    .chipseg button { padding: 4px 8px; font-size: 11.5px; }
+    #catLg { left: 8px; right: 8px; bottom: 40px; width: auto; max-height: 38%; }
+    body.info-open #catLg { display: none; }
     .chip { padding: 6px 11px; font-size: 12px; }
     #info { max-height: 62%; }
     #rainLg { left: 8px; right: 8px; bottom: 40px; width: auto; }
@@ -184,7 +214,7 @@
   <canvas id="cv"></canvas>
   <div id="labels"></div>
   <div id="pinBox"><div id="pin"><div class="stem"></div><div class="dot"></div>
-    <div class="pop"><button class="x" id="pinX" title="Yopish">×</button><b id="pZ">—</b><span id="pSrc"></span><span id="pT"></span><span id="pQ"></span><span id="pLL"></span></div>
+    <div class="pop"><button class="x" id="pinX" title="Yopish">×</button><b id="pZ">—</b><span id="pSrc"></span><span id="pT"></span><span id="pB" style="display:none"></span><span id="pQ"></span><span id="pL" style="display:none"></span><span id="pLL"></span></div>
   </div></div>
   <div id="msg">Yuklanmoqda…</div>
 
@@ -247,6 +277,7 @@
       <div id="rTip"></div>
       <details><summary>Jadval</summary><table id="rTable"></table></details>
     </div>
+    <div id="iTh"></div>
   </div>
 
   <div id="legend" class="card">
@@ -266,13 +297,23 @@
     <div class="src" id="rgSrc"></div>
   </div>
 
+  <div id="catLg" class="card">
+    <div class="t"><span id="clTitle"></span><span id="clSub"></span></div>
+    <div class="seg" id="soilMode" style="display:none"><button data-sm="wrb" class="on">Tuproq turi (WRB)</button><button data-sm="tex">Mexanik tarkib</button></div>
+    <ul id="clList"></ul>
+    <div class="src" id="clSrc"></div>
+  </div>
+
   <div id="chips">
     <button class="chip" id="chipOq" aria-pressed="true" title="Suv oqimi yo‘llarini ko‘rsatish / yopish">
       <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.2C6.6 3.4 3.2 7.2 3.2 10.1a4.8 4.8 0 0 0 9.6 0C12.8 7.2 9.4 3.4 8 1.2z"/></svg>
       Suv yo‘llari</button>
-    <button class="chip" id="chipRain" aria-pressed="false" disabled title="Yog‘in ma’lumoti yuklanmoqda…">
-      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4.6 9.2h6.6a2.7 2.7 0 0 0 .2-5.4A3.7 3.7 0 0 0 4.3 4.6a2.3 2.3 0 0 0 .3 4.6z" fill="currentColor" stroke="none"/><path d="M5.2 11.2l-.9 2.6M8.2 11.2l-.9 2.6M11.2 11.2l-.9 2.6"/></svg>
-      Yog‘in</button>
+    <button class="chip" id="chipBino" aria-pressed="true" disabled title="OSM binolari: yaqinlashtirilganda ko‘rinadi">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 14V6l4-2v10zM7 14V2h7v12zM9 4v1.5h1.5V4zm2.5 0v1.5H13V4zM9 7v1.5h1.5V7zm2.5 0v1.5H13V7zM9 10v1.5h1.5V10zm2.5 0v1.5H13V10z"/></svg>
+      Binolar</button>
+    <div class="chipseg" id="thSeg" role="group" aria-label="Mavzuli qatlam">
+      <button data-th="relyef" class="on">Relyef</button><button data-th="yogin" disabled title="Yog‘in ma’lumoti yuklanmoqda…">Yog‘in</button><button data-th="tuproq">Tuproq</button><button data-th="qoplam">Yer qoplami</button>
+    </div>
   </div>
 
   <button id="compass" class="card" title="Shimolga burish">
@@ -287,6 +328,7 @@
     <span>Tuman: <b id="sT">—</b></span>
     <span id="sRw" style="display:none">Yog‘in: <b id="sR">—</b></span>
     <span id="sLL">—</span>
+    <span id="sAttr" style="display:none">Binolar © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style="color:inherit">OpenStreetMap</a> hissadorlari</span>
     <span class="hint">Chap tugma — aylantirish · o‘ng tugma / Shift — surish · g‘ildirak — yaqinlashtirish · bosish — tuman va nuqta balandligi · ikki marta bosish — yaqinlashish</span>
   </div>
 </div>
@@ -441,6 +483,7 @@ const D = /*__DATA__*/null;
   rainTex.magFilter = rainTex.minFilter = THREE.NearestFilter; rainTex.needsUpdate = true;
   const U = {
     uLut: { value: lutTex }, uIds: { value: idTex }, uHov: { value: 0 }, uSel: { value: 0 }, uRainOn: { value: 0 }, uRainTex: { value: rainTex },
+    uOvOn: { value: 0 }, uOvTex: { value: rainTex }, uOvGrid: { value: new THREE.Vector4(0, 0, 1, 1) },
     uZ: { value: new THREE.Vector2(ZMIN - ZB, ZMAX - ZB) },
     uGrid: { value: new THREE.Vector4(X0 - RES / 2, Z0 - RES / 2, 1 / (W * RES), 1 / (H * RES)) }
   };
@@ -448,14 +491,15 @@ const D = /*__DATA__*/null;
   tMat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform vec4 uGrid;\nvarying float vElev;\nvarying vec2 vIdUv;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvElev = position.y;\nvIdUv = vec2((position.x - uGrid.x) * uGrid.z, (position.z - uGrid.y) * uGrid.w);');
+      .replace('#include <common>', '#include <common>\nuniform vec4 uGrid;\nuniform vec4 uOvGrid;\nvarying float vElev;\nvarying vec2 vIdUv;\nvarying vec2 vOvUv;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvElev = position.y;\nvIdUv = vec2((position.x - uGrid.x) * uGrid.z, (position.z - uGrid.y) * uGrid.w);\nvOvUv = vec2((position.x - uOvGrid.x) * uOvGrid.z, (position.z - uOvGrid.y) * uOvGrid.w);');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uLut;\nuniform sampler2D uIds;\nuniform float uHov;\nuniform float uSel;\nuniform float uRainOn;\nuniform sampler2D uRainTex;\nuniform vec2 uZ;\nvarying float vElev;\nvarying vec2 vIdUv;')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uLut;\nuniform sampler2D uIds;\nuniform float uHov;\nuniform float uSel;\nuniform float uRainOn;\nuniform sampler2D uRainTex;\nuniform float uOvOn;\nuniform sampler2D uOvTex;\nvarying vec2 vOvUv;\nuniform vec2 uZ;\nvarying float vElev;\nvarying vec2 vIdUv;')
       .replace('#include <color_fragment>', `
         diffuseColor.rgb = texture2D(uLut, vec2(clamp((vElev - uZ.x) / (uZ.y - uZ.x), 0.0, 1.0), 0.5)).rgb;
         float did = floor(texture2D(uIds, vIdUv).r * 255.0 + 0.5);
         if (uRainOn > 0.5) { vec4 rc = texture2D(uRainTex, vec2((did + 0.5) / 32.0, 0.5)); if (rc.a > 0.5) diffuseColor.rgb = rc.rgb; }
+        if (uOvOn > 0.5) { vec4 oc = texture2D(uOvTex, vOvUv); if (oc.a > 0.5) diffuseColor.rgb = oc.rgb; }
         if (uSel > 0.5 && abs(did - uSel) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), 0.6) * 0.72;
         if (uHov > 0.5 && abs(did - uHov) < 0.5 && abs(did - uSel) > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0), 0.22);`);
   };
@@ -766,6 +810,7 @@ const D = /*__DATA__*/null;
   }
   let dirtyF = true; const dirty = () => { dirtyF = true; };
   function updateCam() {
+    scheduleBld();
     cam.r = Math.max(R_MIN, Math.min(R_MAX, cam.r));
     placeCamera();
     $('needle').setAttribute('transform', `rotate(${(cam.th * 180 / Math.PI).toFixed(1)})`);
@@ -827,7 +872,7 @@ const D = /*__DATA__*/null;
   function select(n, fly) {
     st.sel = n; U.uSel.value = n; $('tsel').value = String(n);
     L.forEach(l => l.el.classList.toggle('sel', l.n === n));
-    if (!n) { showInfo(st.rain && RAIN ? 0 : -1); dirty(); return; }
+    if (!n) { showInfo(st.theme !== 'relyef' ? 0 : -1); dirty(); return; }
     const t = T[n - 1];
     $('iName').textContent = t.name; $('iCyr').textContent = t.cyr;
     $('iArea').textContent = t.area.toLocaleString('ru-RU') + ' km²';
@@ -951,7 +996,7 @@ const D = /*__DATA__*/null;
   const pin = { el: $('pin'), x: 0, z: 0, on: false, seq: 0 };
   function placePin() {
     if (!pin.on) { pin.el.style.display = 'none'; return; }
-    v3.set(pin.x, groundY(pin.x, pin.z), pin.z).project(camera);
+    v3.set(pin.x, pin.top != null ? pin.top : groundY(pin.x, pin.z), pin.z).project(camera);
     if (v3.z > 1 || Math.abs(v3.x) > 1.05 || Math.abs(v3.y) > 1.05) { pin.el.style.display = 'none'; return; }
     pin.el.style.display = 'block';
     pin.el.style.transform = `translate(${((v3.x + 1) / 2 * stage.clientWidth).toFixed(1)}px,${((1 - v3.y) / 2 * stage.clientHeight).toFixed(1)}px)`;
@@ -970,6 +1015,9 @@ const D = /*__DATA__*/null;
     $('pQ').textContent = sq < 0 ? '' : `Oqim yo‘li: Strahler ${OQ.o[sq]}, havza ${OQ.a[sq].toLocaleString('ru-RU')} km²`;
     $('pQ').style.display = sq < 0 ? 'none' : '';
     $('pLL').textContent = `${ll[0].toFixed(5)}° N, ${ll[1].toFixed(5)}° E`;
+    const lt = layerAt(X, Y); $('pL').innerHTML = lt; $('pL').style.display = lt ? '' : 'none';
+    $('pB').textContent = h.bino || ''; $('pB').style.display = h.bino ? '' : 'none';
+    pin.top = h.bino ? h.y : null;
     dirty();
     if (!D.t4) return;  // 4 m bo'laklarsiz yig'ilgan
     let v, ok = true;
@@ -991,7 +1039,12 @@ const D = /*__DATA__*/null;
         const h = pickGround(cx, cy); if (h) flyTo(new THREE.Vector3(h.x, h.y, h.z), cam.r * 0.4);
       } else {
         lastUp = now;
-        clickTimer = setTimeout(() => { clickTimer = 0; const h = pickGround(cx, cy); showPoint(h); setPin(h); select(h ? h.id : 0, !!h && h.id !== st.sel); }, 300);
+        clickTimer = setTimeout(() => {
+          clickTimer = 0;
+          const b = pickBld(cx, cy);
+          if (b) { showPoint(b); setPin(b); select(b.id, false); return; }  // binoga bosilsa kamera uchmaydi
+          const h = pickGround(cx, cy); showPoint(h); setPin(h); select(h ? h.id : 0, !!h && h.id !== st.sel);
+        }, 300);
       }
     }
     if (!ptrs.size) down = null;
@@ -1013,7 +1066,7 @@ const D = /*__DATA__*/null;
   $('ttl').textContent = D.region;
   $('sub').textContent = `Relyef (DEM) va ${T.length} ta tuman/shahar chegarasi · ${Math.round(ZMIN)}–${Math.round(ZMAX)} m`;
   $('exag').addEventListener('input', e => {
-    st.exag = +e.target.value; $('exagv').textContent = '×' + st.exag;
+    st.exag = +e.target.value; $('exagv').textContent = '×' + st.exag; restackBld();
     world.scale.y = st.exag; cam.t.y = groundY(cam.t.x, cam.t.z); updateCam();
   });
   $('mode').addEventListener('click', e => {
@@ -1040,6 +1093,231 @@ const D = /*__DATA__*/null;
     st.anim = $('showAnim').checked;
     $('showAnim').addEventListener('change', e => { st.anim = e.target.checked; dirty(); });
   }
+  /* ---------- Tuproq (SoilGrids) va yer qoplami (ESA WorldCover): layers/ (layers_build.py) ---------- */
+  let LY = null, LC = null, SOIL = null, ovTex = null;
+  st.soilMode = 'wrb';
+  const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  async function ensureLayer(th) {
+    try {
+      if (!LY) LY = await (await fetch('layers/qatlamlar.json')).json();
+      if (th === 'qoplam' && !LC) {
+        const r = await fetch('layers/yerqoplami.bin'); if (!r.ok) throw new Error(r.status);
+        const s2 = new Blob([await r.arrayBuffer()]).stream().pipeThrough(new DecompressionStream('gzip'));
+        LC = new Uint8Array(await new Response(s2).arrayBuffer());
+      }
+      if (th === 'tuproq' && !SOIL) {
+        SOIL = {};
+        for (const k of Object.keys(LY.soil.r)) SOIL[k] = await unpack(LY.soil.r[k]);
+      }
+      return true;
+    } catch (e) {
+      $('thSeg').querySelector(`[data-th="${th}"]`).title = 'Qatlam faqat sayt orqali ochilganda yuklanadi';
+      return false;
+    }
+  }
+  // Ustqo'yma rastr: sinf raqamlari -> rang (yarim shaffof emas, relyef soyasi saqlanadi)
+  function paintOverlay() {
+    const th = st.theme;
+    if (th !== 'tuproq' && th !== 'qoplam') { U.uOvOn.value = 0; dirty(); return; }
+    const G = th === 'qoplam' ? LY.lc : LY.soil, idx = th === 'qoplam' ? LC : SOIL[st.soilMode];
+    const cls = th === 'qoplam' ? LY.lc.classes : LY.soil[st.soilMode], pal = cls.map(c => hexRgb(c.color));
+    // telefonda katta tekstura o'rniga ikki baravar kichigi
+    const f = LITE && G.w > 2048 ? 2 : 1, w = Math.floor(G.w / f), h = Math.floor(G.h / f), px = new Uint8Array(w * h * 4);
+    for (let i = 0; i < h; i++) for (let j = 0; j < w; j++) {
+      const k = idx[(i * f) * G.w + j * f]; if (!k || k === 255) continue;
+      const c = pal[k - 1]; if (!c) continue;
+      const o = (i * w + j) * 4; px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255;
+    }
+    if (ovTex) ovTex.dispose();
+    ovTex = new THREE.DataTexture(px, w, h, THREE.RGBAFormat);
+    ovTex.magFilter = ovTex.minFilter = THREE.NearestFilter; ovTex.needsUpdate = true;
+    const e = LY.ext;
+    U.uOvTex.value = ovTex; U.uOvGrid.value.set(e[0] - CX, CY - e[1], 1 / e[2], 1 / e[3]); U.uOvOn.value = 1;
+    // afsona: viloyatdagi ulush bo'yicha
+    const pct = th === 'qoplam' ? LY.lc.region.pct : LY.soil.region[st.soilMode + '_pct'];
+    $('clTitle').textContent = th === 'qoplam' ? 'Yer qoplami (2021)' : (st.soilMode === 'wrb' ? 'Tuproq turi (WRB)' : 'Mexanik tarkib (USDA)');
+    $('clSub').textContent = th === 'tuproq' ? LY.soil.depth : 'viloyatda, %';
+    $('soilMode').style.display = th === 'tuproq' ? 'flex' : 'none';
+    $('clList').innerHTML = cls.map((c, k) => [c, pct[k], k]).filter(x => x[1] >= 0.3).sort((a, b) => b[1] - a[1])
+      .map(([c, v]) => `<li><i style="background:${c.color}"></i><span>${c.name}${c.uz ? ` <small>(${c.uz})</small>` : ''}${c.en ? ` <small>(${c.en})</small>` : ''}</span><b>${v.toLocaleString('ru-RU')}%</b></li>`).join('');
+    $('clSrc').textContent = 'Manba: ' + (th === 'qoplam' ? LY.lc.manba : LY.soil.manba);
+    dirty();
+  }
+  $('soilMode').addEventListener('click', e => {
+    const m = e.target.dataset && e.target.dataset.sm; if (!m) return;
+    st.soilMode = m; [...$('soilMode').children].forEach(b => b.classList.toggle('on', b.dataset.sm === m));
+    paintOverlay(); if ($('info').style.display === 'block') renderTheme(st.sel);
+  });
+  // nuqtadagi qiymat (TM koordinata)
+  function gridAt(G, X, Y) {
+    const e = LY.ext, j = Math.floor((X - e[0]) / G.res), i = Math.floor((e[1] - Y) / G.res);
+    return i < 0 || j < 0 || i >= G.h || j >= G.w ? -1 : i * G.w + j;
+  }
+  function layerAt(X, Y) {
+    if (st.theme === 'qoplam' && LC) {
+      const k = gridAt(LY.lc, X, Y), c = k < 0 ? 0 : LC[k];
+      return c ? `Yer qoplami: <b>${LY.lc.classes[c - 1].name}</b>` : '';
+    }
+    if (st.theme === 'tuproq' && SOIL) {
+      const k = gridAt(LY.soil, X, Y); if (k < 0 || !SOIL.wrb[k]) return '';
+      const w = LY.soil.wrb[SOIL.wrb[k] - 1], t = SOIL.tex[k] ? LY.soil.tex[SOIL.tex[k] - 1] : null, v = (a, d) => SOIL[a][k] === 255 ? '—' : (SOIL[a][k] / d).toLocaleString('ru-RU');
+      return `Tuproq: <b>${w.name}</b>${w.uz ? ' (' + w.uz + ')' : ''}${t ? ', ' + t.name.toLowerCase() : ''}<br>` +
+        `loy ${v('clay', 1)}% · qum ${v('sand', 1)}% · chang ${v('silt', 1)}% · pH ${v('ph', 20)} · org. C ${v('soc', 5)} g/kg (0–30 sm)`;
+    }
+    return '';
+  }
+  // tuman / viloyat kartasidagi tarkib
+  function renderTheme(n) {
+    const sec = $('iTh');
+    if (!LY || (st.theme !== 'tuproq' && st.theme !== 'qoplam')) { sec.style.display = 'none'; return; }
+    sec.style.display = 'block';
+    const k = n ? LY.districts.findIndex(d => d.code === T[n - 1].code) : -1;
+    const bar = (cls, pct, extra) => {
+      const rows = cls.map((c, i) => [c, pct[i], extra ? extra[i] : null]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+      return `<div class="stack">${rows.map(([c, v]) => `<span style="flex:${v};background:${c.color}" title="${c.name}: ${v}%"></span>`).join('')}</div>` +
+        `<table class="clist">${rows.filter(x => x[1] >= 1).map(([c, v, km]) => `<tr><td><i style="background:${c.color}"></i>${c.name}</td><td>${v.toLocaleString('ru-RU')}%</td>${km != null ? `<td>${km.toLocaleString('ru-RU')} km²</td>` : ''}</tr>`).join('')}</table>`;
+    };
+    if (st.theme === 'qoplam') {
+      const S = k < 0 ? LY.lc.region : LY.lc.tuman[k];
+      sec.innerHTML = `<h3>Yer qoplami (2021)</h3>` + bar(LY.lc.classes, S.pct, S.km2);
+    } else {
+      const S = k < 0 ? LY.soil.region : LY.soil.tuman[k], f = v => v == null ? '—' : v.toLocaleString('ru-RU');
+      sec.innerHTML = `<h3>Tuproq (${LY.soil.depth})</h3>` +
+        `<div class="rstats"><div><small>Loy / qum / chang</small><b>${f(S.clay)} / ${f(S.sand)} / ${f(S.silt)} <i>%</i></b></div>` +
+        `<div><small>pH (suvda)</small><b>${f(S.ph)}</b></div><div><small>Organik uglerod</small><b>${f(S.soc)} <i>g/kg</i></b></div>` +
+        `<div><small>Asosiy mexanik tarkib</small><b style="font-size:13px">${LY.soil.tex[S.tex_pct.indexOf(Math.max(...S.tex_pct))].name}</b></div></div>` +
+        (st.soilMode === 'wrb' ? bar(LY.soil.wrb, S.wrb_pct) : bar(LY.soil.tex, S.tex_pct));
+    }
+  }
+
+  /* ---------- Binolar: OpenStreetMap (bino/, bino_build.py), yaqinlashganda bo'lakma-bo'lak ---------- */
+  const bldG = new THREE.Group(); scene.add(bldG);
+  const bldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const B_SHOW = LITE ? 7000 : 12000, B_RAD = LITE ? 4500 : 8000;
+  const B_TYPE = { yes: 'bino', house: 'turar uy', detached: 'turar uy', residential: 'turar joy', apartments: 'ko‘p qavatli uy',
+    school: 'maktab', kindergarten: 'bog‘cha', university: 'oliy o‘quv yurti', college: 'kollej', hospital: 'shifoxona',
+    clinic: 'poliklinika', mosque: 'masjid', commercial: 'savdo binosi', retail: 'do‘kon', office: 'ofis', industrial: 'sanoat binosi',
+    warehouse: 'ombor', garage: 'garaj', garages: 'garajlar', greenhouse: 'issiqxona', construction: 'qurilayotgan bino', roof: 'ayvon / soyabon' };
+  let BIDX = null; const bTiles = new Map();
+  st.bino = true;
+  fetch('bino/index.json').then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return;
+    BIDX = j; BIDX.has = new Set(j.tiles.map(t => t[0] + '_' + t[1]));
+    $('chipBino').disabled = false; $('chipBino').title = `OSM binolari (${j.jami.toLocaleString('ru-RU')} ta): yaqinlashtirilganda ko‘rinadi`;
+    scheduleBld();
+  }).catch(() => { $('chipBino').title = 'Binolar faqat sayt orqali ochilganda yuklanadi'; });
+  $('chipBino').addEventListener('click', () => { st.bino = !st.bino; $('chipBino').setAttribute('aria-pressed', st.bino); scheduleBld(); dirty(); });
+  let bTimer = 0;
+  function scheduleBld() { clearTimeout(bTimer); bTimer = setTimeout(updateBld, 120); }
+  function updateBld() {
+    const show = st.bino && BIDX && cam.r < B_SHOW;
+    bldG.visible = !!show; $('sAttr').style.display = show ? '' : 'none'; dirty(); if (!show) return;
+    const X = cam.t.x + CX, Y = CY - cam.t.z, R = Math.min(B_RAD, Math.max(2500, cam.r * 1.3)), TS = BIDX.tile, want = new Set();
+    for (let i = Math.floor((X - R) / TS); i <= Math.floor((X + R) / TS); i++) for (let j = Math.floor((Y - R) / TS); j <= Math.floor((Y + R) / TS); j++) {
+      const k = i + '_' + j, d = Math.hypot((i + 0.5) * TS - X, (j + 0.5) * TS - Y);
+      if (BIDX.has.has(k) && d < R + TS * 0.71) want.add(k);
+    }
+    want.forEach(k => { if (!bTiles.has(k)) loadTile(k); });
+    bTiles.forEach((t, k) => {
+      if (want.has(k) || t === 'loading') return;
+      const [i, j] = k.split('_').map(Number);
+      if (Math.hypot((i + 0.5) * TS - X, (j + 0.5) * TS - Y) > R * 1.6 + TS) { bldG.remove(t.mesh); t.mesh.geometry.dispose(); bTiles.delete(k); }
+    });
+  }
+  async function loadTile(k) {
+    bTiles.set(k, 'loading');
+    try {
+      const r = await fetch('bino/' + k + '.bin'); if (!r.ok) throw new Error(r.status);
+      const s2 = new Blob([await r.arrayBuffer()]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const buf = await new Response(s2).arrayBuffer();
+      if (bTiles.get(k) !== 'loading') return;
+      bTiles.set(k, buildTile(k, buf)); bldG.add(bTiles.get(k).mesh); dirty();
+    } catch (e) { bTiles.delete(k); }
+  }
+  // Bo'lak geometriyasi: tom (earcut) + devorlar; y = poydevor*mubolag'a + nisbiy balandlik (mubolag'a binoga ta'sir qilmaydi)
+  function buildTile(k, buf) {
+    const dv = new DataView(buf), nb = dv.getUint32(0, true), nr = dv.getUint32(4, true), nvt = dv.getUint32(8, true);
+    let o = 12;
+    const Hh = new Uint16Array(buf, o, nb); o += 2 * nb;
+    const MH = new Uint16Array(buf, o, nb); o += 2 * nb;
+    const RG = new Uint16Array(buf, o, nb); o += 2 * nb;
+    const RL = new Uint16Array(buf, o, nr); o += 2 * nr;
+    const XY = new Int16Array(buf, o, 2 * nvt); o += 4 * nvt;
+    const TY = new Uint8Array(buf, o, nb); o += nb;
+    const LV = new Uint8Array(buf, o, nb);
+    const [ti, tj] = k.split('_').map(Number), ox = (ti + 0.5) * BIDX.tile - CX, oz = CY - (tj + 0.5) * BIDX.tile;
+    const P = [], Nn = [], C = [], BASE = [], REL = [], TRI = [], OWN = [];
+    const wall = [0.91, 0.89, 0.85], roofs = [[0.72, 0.64, 0.55], [0.78, 0.71, 0.61], [0.66, 0.64, 0.62], [0.82, 0.77, 0.69]];
+    const roofOf = (t, b) => {
+      const nm = BIDX.types[t];
+      if (nm === 'apartments' || nm === 'office' || nm === 'dormitory' || nm === 'hotel') return [0.60, 0.64, 0.69];
+      if (nm === 'industrial' || nm === 'warehouse') return [0.63, 0.66, 0.62];
+      if (nm === 'school' || nm === 'university' || nm === 'kindergarten' || nm === 'hospital' || nm === 'college') return [0.79, 0.62, 0.47];
+      return roofs[(b * 2654435761 >>> 0) % 4];
+    };
+    let vi = 0, ri = 0;
+    const push = (x, y, z, nx, ny, nz, c, base) => { P.push(x, 0, z); Nn.push(nx, ny, nz); C.push(c[0], c[1], c[2]); BASE.push(base); REL.push(y); return vi++; };
+    for (let b = 0, pi = 0; b < nb; b++) {
+      const rings = [];
+      for (let r = 0; r < RG[b]; r++, ri++) {
+        const pts = [];
+        for (let m = 0; m < RL[ri]; m++, pi++) pts.push(new THREE.Vector2(ox + XY[2 * pi] / 10, oz - XY[2 * pi + 1] / 10));
+        rings.push(pts);
+      }
+      let cx = 0, cz = 0; rings[0].forEach(p => { cx += p.x; cz += p.y; }); cx /= rings[0].length; cz /= rings[0].length;
+      const base = heightAt(cx, cz) - ZB, top = Hh[b] / 10, bot = MH[b] ? MH[b] / 10 : -3, rc = roofOf(TY[b], b);
+      // devorlar: har qirra uchun to'rtburchak, tashqi normal
+      for (const ring of rings) for (let m = 0; m < ring.length; m++) {
+        const a = ring[m], q = ring[(m + 1) % ring.length], dx = q.x - a.x, dz = q.y - a.y, l = Math.hypot(dx, dz) || 1;
+        const nx = -dz / l, nz = dx / l;
+        const i0 = push(a.x, bot, a.y, nx, 0, nz, wall, base), i1 = push(q.x, bot, q.y, nx, 0, nz, wall, base);
+        const i2 = push(q.x, top, q.y, nx, 0, nz, wall, base), i3 = push(a.x, top, a.y, nx, 0, nz, wall, base);
+        // (i0,i1,i2) aylanishining normali = (nx, 0, nz): tashqi halqada tashqariga, hovli halqasida hovliga
+        TRI.push(i0, i1, i2, i0, i2, i3);
+      }
+      // tom
+      const tri = THREE.ShapeUtils.triangulateShape(rings[0], rings.slice(1)), flat = rings.flat(), r0 = vi;
+      flat.forEach(p => push(p.x, top, p.y, 0, 1, 0, rc, base));
+      tri.forEach(t => {
+        const a = flat[t[0]], b2 = flat[t[1]], c2 = flat[t[2]];
+        const cr = (b2.x - a.x) * (c2.y - a.y) - (b2.y - a.y) * (c2.x - a.x);  // x-z tekisligida; y yuqoriga qaragan bo'lishi uchun
+        if (cr < 0) TRI.push(r0 + t[0], r0 + t[1], r0 + t[2]); else TRI.push(r0 + t[0], r0 + t[2], r0 + t[1]);
+      });
+      while (OWN.length < TRI.length / 3) OWN.push(b);  // uchburchak -> bino raqami (bosilganda)
+    }
+    const pos = new Float32Array(P), base = new Float32Array(BASE), rel = new Float32Array(REL);
+    for (let i = 0; i < base.length; i++) pos[i * 3 + 1] = base[i] * st.exag + rel[i];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(Nn, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    g.setIndex(new THREE.BufferAttribute(vi > 65535 ? new Uint32Array(TRI) : new Uint16Array(TRI), 1));
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(g, bldMat);
+    return { mesh, base, rel, owner: Uint32Array.from(OWN), H: Hh, MH, TY, LV };
+  }
+  function restackBld() {
+    bTiles.forEach(t => {
+      if (t === 'loading') return;
+      const pos = t.mesh.geometry.attributes.position;
+      for (let i = 0; i < t.base.length; i++) pos.array[i * 3 + 1] = t.base[i] * st.exag + t.rel[i];
+      pos.needsUpdate = true; t.mesh.geometry.computeBoundingSphere();
+    });
+    dirty();
+  }
+  function pickBld(cx, cy) {
+    if (!bldG.visible || !bldG.children.length) return null;
+    const r = cv.getBoundingClientRect();
+    ndc.set((cx - r.left) / r.width * 2 - 1, -(cy - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(bldG.children, false)[0]; if (!hit) return null;
+    const t = [...bTiles.values()].find(v => v !== 'loading' && v.mesh === hit.object); if (!t) return null;
+    const b = t.owner[hit.faceIndex], id = idAt(hit.point.x, hit.point.z) || idAt(cam.t.x, cam.t.z);
+    if (!id) return null;
+    const tn = BIDX.types[t.TY[b]], h = t.H[b] / 10, lv = t.LV[b];
+    return { x: hit.point.x, z: hit.point.z, y: hit.point.y, id,
+      bino: `Bino: ${B_TYPE[tn] || tn}${lv ? `, ${lv} qavat` : ''}, ~${h.toLocaleString('ru-RU')} m${lv || BIDX.types[t.TY[b]] === 'apartments' ? '' : ' (taxminiy)'} · OSM` };
+  }
+
   /* ---------- Yog'ingarchilik: rain/yogin.json (GitHub Actions har kuni yangilaydi, rain_update.py) ---------- */
   // Kunlik qiymatlar 0.1 mm; har tuman uchun bitta nuqta (Open-Meteo, ECMWF IFS 9 km).
   const SEQ = ['#cde2fb', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7', '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281', '#0d366b']
@@ -1116,11 +1394,12 @@ const D = /*__DATA__*/null;
     if (!n) { $('iName').textContent = D.region + ' — o‘rtacha'; }
     box.style.display = 'block'; document.body.classList.add('info-open');
     renderRain(n);  // karta ko'ringandan keyin: grafik uning haqiqiy kengligida chiziladi
+    renderTheme(n);
   }
 
   function renderRain(n) {
     const sec = $('iRain');
-    if (!RAIN) { sec.style.display = 'none'; return; }
+    if (!RAIN || st.theme !== 'yogin') { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
     const code = n ? T[n - 1].code : 0, a = series(code), G = agg(code);
     $('rAsOf').textContent = 'oxirgi kun ' + fmtDate(RAIN.last);
@@ -1199,23 +1478,32 @@ const D = /*__DATA__*/null;
     paintRain();
   });
 
-  function setRain(on) {
-    st.rain = on; U.uRainOn.value = on ? 1 : 0;
-    $('chipRain').setAttribute('aria-pressed', on); document.body.classList.toggle('rain', on); $('sRw').style.display = on ? '' : 'none';
+  // Mavzuli qatlam: relyef | yogin | tuproq | qoplam (bir vaqtda bittasi)
+  st.theme = 'relyef';
+  async function setTheme(th) {
+    const was = st.theme;
+    if (th !== 'relyef' && th !== 'yogin' && !(await ensureLayer(th))) return;
+    st.theme = th; st.rain = th === 'yogin';
+    [...$('thSeg').children].forEach(b => b.classList.toggle('on', b.dataset.th === th));
+    U.uRainOn.value = st.rain ? 1 : 0;
+    document.body.classList.toggle('rain', st.rain); $('sRw').style.display = st.rain ? '' : 'none';
+    document.body.classList.toggle('cat', th === 'tuproq' || th === 'qoplam');
     // ikki ko'k rang aralashmasin: yog'in yoqilganda suv yo'llari vaqtincha yopiladi (tugma bilan qayta ochish mumkin)
-    if (on) { st.oqWas = oqG.visible; if (OQ) setOq(false); paintRain(); }
-    else if (st.oqWas && OQ) setOq(true);
-    if (st.sel) showInfo(st.sel); else showInfo(on ? 0 : -1);
+    if (st.rain && was !== 'yogin') { st.oqWas = oqG.visible; if (OQ) setOq(false); paintRain(); }
+    else if (!st.rain && was === 'yogin' && st.oqWas && OQ) setOq(true);
+    paintOverlay();
+    if (st.sel) showInfo(st.sel); else showInfo(th === 'relyef' ? -1 : 0);
     dirty();
   }
-  $('chipRain').addEventListener('click', () => setRain(!st.rain));
+  $('thSeg').addEventListener('click', e => { const th = e.target.dataset && e.target.dataset.th; if (th && !e.target.disabled) setTheme(th); });
 
   // Ikki manbadan (sayt nusxasi va GitHub dagi eng so'nggi fayl) qaysi biri yangiroq bo'lsa, o'shani olamiz
   (async () => {
     const urls = ['rain/yogin.json', 'https://raw.githubusercontent.com/Hayitali4455/fargona-3d/main/rain/yogin.json'];
     const got = (await Promise.allSettled(urls.map(u => fetch(u, { cache: 'no-cache' }).then(r => r.ok ? r.json() : Promise.reject(r.status)))))
       .filter(r => r.status === 'fulfilled' && r.value && r.value.tuman).map(r => r.value);
-    if (!got.length) { $('chipRain').title = 'Yog‘in ma’lumoti faqat sayt orqali ochilganda yuklanadi'; return; }
+    const rb = $('thSeg').querySelector('[data-th="yogin"]');
+    if (!got.length) { rb.title = 'Yog‘in ma’lumoti faqat sayt orqali ochilganda yuklanadi'; return; }
     got.sort((x, y) => (y.oxiri + y.yangilandi).localeCompare(x.oxiri + x.yangilandi));
     RAIN = prepRain(got[0]);
     const J = RAIN.J, upd = new Date(J.yangilandi);
@@ -1223,7 +1511,7 @@ const D = /*__DATA__*/null;
     $('rgSrc').textContent = `${fmtDate(RAIN.day(0))} – ${fmtDate(RAIN.last)}, har tuman uchun bitta nuqta. Manba: Open-Meteo.com (ECMWF IFS, 9 km), CC BY 4.0. ` +
       'Model baholari: quruq vodiyda stansiya o‘lchovlaridan ko‘proq chiqishi mumkin' +
       (J.tez ? `; ${fmtDate(new Date(J.tez + 'T00:00:00Z'))} dan keyingi kunlar taxminiy (operativ model).` : '.');
-    $('chipRain').disabled = false; $('chipRain').title = 'Yog‘ingarchilik qatlami';
+    rb.disabled = false; rb.title = 'Yog‘ingarchilik qatlami';
     if ($('info').style.display === 'block' && st.sel) showInfo(st.sel);
   })();
 
@@ -1262,7 +1550,7 @@ const D = /*__DATA__*/null;
     if (dirtyF) { placeLabels(stage.clientWidth, stage.clientHeight); placePin(); }
     dirtyF = false;
   })(0);
-  window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY, OQ, nearStream, groundY };
+  window.__f3d = { cam, updateCam, select, st, dirty, pickGround, labels: L, camera, pixelElev, setPin, elevFull, toMerc, CX, CY, OQ, nearStream, groundY, pickBld, setPin, layerAt };
 })().catch(e => { const m = document.getElementById('msg'); m.textContent = 'Xato: ' + e.message; m.className = 'err'; console.error(e); });
 </script>
 </body>
